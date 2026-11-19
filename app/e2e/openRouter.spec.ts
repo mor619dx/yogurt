@@ -41,11 +41,18 @@ async function cloud(page: Page, o: { chat?: string; speakers?: string }) {
   await expect.poll(() => page.evaluate(() => window.yogurt.openRouter.state())).toMatchObject({ chat: !!o.chat, chatModel: o.chat ?? '', speakers: !!o.speakers, sttModel: o.speakers ?? '' })
 }
 
+/** the transcript in view (it may already be: the toggle would close it) */
+async function showTranscript(page: Page) {
+  const list = page.getByTestId('transcript')
+  if (!await list.isVisible()) await page.getByTestId('note-transcript-toggle').click()
+  await expect(list).toBeVisible()
+}
+
 /** a meeting recorded through to the end of the fixtures, then stopped */
 async function record(page: Page) {
   await page.getByRole('button', { name: 'Start recording', exact: true }).click()
   await expect(page.getByTestId('note-state')).toHaveAttribute('data-state', 'recording')
-  await page.getByTestId('note-transcript-toggle').click()
+  await showTranscript(page)
   await expect(page.getByTestId('transcript-bubble').filter({ hasText: 'She will send a draft' })).toBeVisible({ timeout: 40_000 })
   await page.getByTestId('note-stop').click()
 }
@@ -69,7 +76,7 @@ test('@everywhere Cloud AI: the key is checked and kept sealed; summaries come f
     expect(stt.find((r) => r.speakers)?.provider).toEqual({ options: { deepgram: { diarize: true } } })
     // the transcript is replaced: the voices the call app named keep their names, one it never named is "Speaker 1"
     const who = page.getByTestId('transcript-who')
-    await expect(page.getByTestId('transcript-bubble').filter({ hasText: 'Can everyone hear me?' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('transcript-bubble').filter({ hasText: 'Can everyone hear me?' })).toHaveCount(1, { timeout: 30_000 })
     await expect(who.filter({ hasText: /^Speaker 1$/ })).toHaveCount(1)
     for (const name of ['Ann Lee', 'Bo Park']) await expect(who.filter({ hasText: name })).toHaveCount(1)
     // then the summary, written by the OpenRouter model
@@ -78,7 +85,7 @@ test('@everywhere Cloud AI: the key is checked and kept sealed; summaries come f
 
     // a voice named by hand, on every line of it (the transcript open again: the summary took its place)
     await expect.poll(async () => (await sent(app)).filter((r) => r.path === '/chat/completions').length, { timeout: 30_000 }).toBeGreaterThan(1)
-    if (!await who.filter({ hasText: 'Speaker 1' }).first().isVisible()) await page.getByTestId('note-transcript-toggle').click()
+    await showTranscript(page)
     await who.filter({ hasText: 'Speaker 1' }).first().click()
     const input = page.getByTestId('speaker-rename-input')
     await expect(input).toBeFocused()
@@ -105,7 +112,7 @@ test('@everywhere Cloud AI: when OpenRouter refuses, the transcript from this co
     await expect(page.getByTestId('openrouter-problem').first()).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText("Couldn't label speakers. The transcript from this computer is kept.")).toBeVisible()
     await expect(page.getByText('Your OpenRouter account is out of credits.')).toBeVisible()
-    await expect(page.getByTestId('transcript-bubble').filter({ hasText: 'She will send a draft' })).toBeVisible()
+    await expect(page.getByTestId('transcript-bubble').filter({ hasText: 'She will send a draft' })).toHaveCount(1)
     await expect(page.getByTestId('transcript-who').filter({ hasText: /^Speaker \d$/ })).toHaveCount(0)
     // the summary from this computer's model
     await expect.poll(() => app.evaluate(() => (globalThis as unknown as { __fake__: { prompts(): { notes: string[] } } }).__fake__.prompts().notes.length), { timeout: 30_000 }).toBeGreaterThan(0)
