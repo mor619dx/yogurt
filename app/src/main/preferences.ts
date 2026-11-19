@@ -6,7 +6,7 @@ import { firstRunPlan, missing, nudge } from '../shared/onboarding'
 import type { OnboardingPlan } from '../shared/types'
 import { cleanJargon } from '../shared/jargon'
 import { isLocale, setLanguage } from '../shared/i18n'
-import { SPOKEN, type Spoken } from '../shared/spoken'
+import { isSpoken } from '../shared/spoken'
 
 const isKind = (k: unknown): k is PermissionKind => PERMISSION_KINDS.includes(k as PermissionKind)
 
@@ -23,8 +23,6 @@ export function hookPreferences(d: { file: string; permissions: Permissions; ask
   relaunch(): boolean
   /** fake mode: a slow start, so tests see the launch screen */
   slowStartMs?: number
-  /** the spoken language changed: the meeting being recorded follows it where it can */
-  onSpoken?: (v: Spoken) => void
   /** the permissions this computer has (supportedKinds in platform.ts); a Mac has them all */
   kinds?: readonly PermissionKind[]; os?: string
   /** Windows and Linux: whether a calendar link is connected (the first run asks for one while none is) */
@@ -105,11 +103,11 @@ export function hookPreferences(d: { file: string; permissions: Permissions; ask
     updateSettings(d.file, { jargon: jargon.length ? jargon : undefined })
     return jargon
   })
-  // English only is the default, so only Multi-language is written down
+  // the language new meetings start in; English is the default, so only another is written down. A meeting already
+  // made keeps its own (picked in its note)
   ipcMain.handle('settings:spoken', (_e, v: unknown) => {
-    if (!SPOKEN.includes(v as Spoken)) return
-    updateSettings(d.file, { spoken: v === 'multi' ? 'multi' : undefined })
-    d.onSpoken?.(v as Spoken)
+    if (!isSpoken(v)) return
+    updateSettings(d.file, { spoken: v === 'en' ? undefined : v })
   })
   ipcMain.handle('settings:menu-bar', (_e, on: unknown) => {
     if (os === 'darwin' || typeof on !== 'boolean') return

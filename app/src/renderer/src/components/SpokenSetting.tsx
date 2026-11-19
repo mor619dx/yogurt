@@ -1,38 +1,31 @@
 import { LoadingContent } from './LoadingContent'
-import { useEffect, useState } from 'react'
-import { Languages } from 'lucide-react'
-import { SPOKEN, type Spoken } from '../../../shared/spoken'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, Languages } from 'lucide-react'
+import type { Spoken } from '../../../shared/spoken'
 import { t } from '../../../shared/i18n'
+import { useLanguage } from '../i18n'
+import { sortedSpoken, spokenLabel } from '../spokenNames'
 
-const label = (s: Spoken) => (s === 'en' ? t('English only') : t('Multi-language'))
-
-/** Settings → Language: the language people speak in meetings, the same choice as the picker under a note */
+/** Settings → Language: the language new meetings start in; each meeting's own is picked under its note */
 export function SpokenSetting() {
+  const locale = useLanguage()
   const [spoken, setSpoken] = useState<Spoken>()
   useEffect(() => { void window.yogurt.settings.get().then((p) => setSpoken(p.spoken)) }, [])
+  const all = useMemo(() => sortedSpoken(locale), [locale])
   const choose = (v: Spoken) => { setSpoken(v); void window.yogurt.settings.setSpoken(v) }
-  const arrows = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const rtl = getComputedStyle(e.currentTarget).direction === 'rtl'
-    const step = { ArrowDown: 1, ArrowUp: -1, ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1 }[e.key]
-    if (!step) return
-    e.preventDefault()
-    const next = SPOKEN[(SPOKEN.indexOf(spoken ?? 'en') + step + SPOKEN.length) % SPOKEN.length]
-    choose(next)
-    e.currentTarget.querySelector<HTMLButtonElement>(`[data-spoken-choice="${next}"]`)?.focus()
-  }
   return (
     <LoadingContent pending={!spoken}><div className="settings-row" data-kind="spoken">
       <span className="settings-permission-icon"><Languages size={17} strokeWidth={1.75} aria-hidden="true" /></span>
       <div className="settings-row-copy">
-        <p className="settings-label">{t('Spoken language')}</p>
-        <p className="settings-description">{t('English only is faster and more accurate. Pick Multi-language for meetings in other languages.')}</p>
+        <label htmlFor="settings-spoken" className="settings-label">{t('Spoken language')}</label>
+        <p id="settings-spoken-description" className="settings-description">{t('Used for new meetings. You can change it for each meeting from its note.')}</p>
       </div>
-      <div role="radiogroup" aria-label={t('Spoken language')} onKeyDown={arrows} className="settings-spoken">
-        {SPOKEN.map((v) => (
-          <button key={v} data-testid={`settings-spoken-${v}`} data-spoken-choice={v} role="radio" aria-checked={spoken === v} tabIndex={(spoken ?? 'en') === v ? 0 : -1} onClick={() => choose(v)}
-            className="settings-spoken-choice">{label(v)}</button>
-        ))}
-      </div>
+      <span className="settings-select-wrap">
+        <select id="settings-spoken" data-testid="settings-spoken" aria-describedby="settings-spoken-description" value={spoken ?? 'en'} disabled={!spoken} onChange={(e) => choose(e.target.value)} className="settings-select">
+          {all.map((c) => <option key={c} value={c}>{spokenLabel(c, locale)}</option>)}
+        </select>
+        <ChevronDown size={14} aria-hidden="true" />
+      </span>
     </div></LoadingContent>
   )
 }

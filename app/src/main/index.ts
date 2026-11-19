@@ -17,7 +17,7 @@ import { isAppRoute } from '../shared/routes'
 import { resumesNote } from '../shared/agendaNote'
 import { relaunchOptions, stripAppImageEnv } from './relaunch'
 import { capabilities, micListHelper, platformOf, supportedKinds } from '../shared/platform'
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, protocol, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, protocol, shell } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { basename, join } from 'node:path'
@@ -86,6 +86,12 @@ import { AUDIO_SCHEME, audioExts, createAudioHandler, trackFile, type AudioExt }
 import { helperDecode, wavDecode } from './asr/backfill'
 import { finishQuit, hookUpdates, isPreviewBuild, updatesOn } from './updates'
 import type { NoteSaveResult, StartResult } from '../shared/types'
+import { isSpoken, spokenOf, type Spoken } from '../shared/spoken'
+import { openSecret, sealSecret } from './secrets'
+import { AUDIO_SPEAKER } from '../shared/audioUpload'
+import { hookOpenRouter } from './openrouter/ipc'
+import { createCloudTranscriber } from './openrouter/cloudTranscribe'
+import { fakeOpenRouterFetch } from './openrouter/fake'
 
 // the transcript's player streams each meeting's audio from here; seeking needs stream support (before ready)
 protocol.registerSchemesAsPrivileged([{ scheme: AUDIO_SCHEME, privileges: { standard: true, secure: true, stream: true } }])
@@ -488,9 +494,7 @@ app.whenReady().then(() => {
   const calendarLinks = caps.calendar ? createCalendarLinks({
     file: join(userDataDir(), 'settings.json'), get: getCalendar,
     // no keychain (Linux without a secret service): scrambled, not encrypted, so the address isn't readable at a glance
-    seal: (plain) => (safeStorage.isEncryptionAvailable() ? `k:${safeStorage.encryptString(plain).toString('base64')}` : `b:${Buffer.from(plain).toString('base64')}`),
-    open: (sealed) => (sealed.startsWith('k:') ? safeStorage.decryptString(Buffer.from(sealed.slice(2), 'base64'))
-      : sealed.startsWith('b:') ? Buffer.from(sealed.slice(2), 'base64').toString() : sealed.replace(/^p:/, '')),
+    seal: sealSecret, open: openSecret,
   }) : null
   if (calendarLinks) setCalendarLinkSource(calendarLinks, { alongside: !caps.calendarLink })
   hookPreferences({
@@ -512,7 +516,6 @@ app.whenReady().then(() => {
       return true
     },
     slowStartMs: isFake() ? Number(process.env.YOGURT_FAKE_BOOT_MS ?? 0) : 0,
-    onSpoken: () => spokenChanged(),
   })
   // Music and Spotify pause while a meeting records, and play again after
   const media = createMedia({ helper: runHelper })
@@ -533,6 +536,9 @@ app.whenReady().then(() => {
   initMeetings(store)
   // the person's own names, never given to the other side: the one in Settings and the Mac's
   const settingsFile = join(userDataDir(), 'settings.json')
+  // a new meeting starts in the spoken language picked in Settings; each meeting then keeps its own
+  store.newSpoken = () => spokenSetting(loadSettings(settingsFile))
+  const spokenOfMeeting = (id: string): Spoken => { const m = store.meeting(id); return m?.spoken ? spokenOf(m.spoken) : spokenSetting(loadSettings(settingsFile)) }
   setCalendarSelection(() => loadSettings(settingsFile))
   setCalendarOwnEmail(email => {
     try { if (store.rememberOwnEmail(email)) win?.webContents.send('meetings:changed') }
@@ -561,7 +567,7 @@ app.whenReady().then(() => {
     sendPartial: (part) => { win?.webContents.send('transcript:partial', part); sendWidgetTranscript('transcript:partial', part) },
     warn: (code) => tell({ t: 'warn', code }), pidFile: join(userDataDir(), 'whisper-server.pid'),
     // English only (the default) or Multi-language, read on each chunk so the footer's picker counts at once
-    spoken: () => spokenSetting(loadSettings(settingsFile)),
+    spoken: spokenOfMeeting,
     // Apple's on-device speech for the live words (macOS 26, Apple Silicon); fake mode has a stand-in when a test asks
     speech: {
       host: { platform: process.platform, arch: process.arch, osRelease: isFake() ? (process.env.YOGURT_FAKE_SPEECH === '1' ? '25.4.0' : '24.0.0') : os.release() }, binary: audioHelperPath(),
@@ -608,11 +614,15 @@ app.whenReady().then(() => {
   // fake mode: the fixed Mac (a bigger one) unless a test asks for a 16 GB one
   const smallMac = isFake() ? process.env.YOGURT_FAKE_SMALL_MAC === '1' : isSmallMac(os.totalmem())
   const memory = notesMemory(smallMac)
-  const model = createNotesModel({ engine, modelPath: () => setup.notesPath(), onLoaded: path => setup.notesModelLoaded(path), contextSize: memory.contextSize, ...(memory.releaseSpeech ? { beforeLoad: releaseIdleSpeech } : {}) })
+  // Cloud AI (Settings): summaries, titles and answers by an OpenRouter model, and speaker labels after each meeting; off unless turned on
+  const openRouter = hookOpenRouter({ file: settingsFile, ...(isFake() ? { fetchFn: fakeOpenRouterFetch() } : {}),
+    chatChanged: () => { queue.modelArrived(); conversations.refresh() },
+    problem: (kind) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('openrouter:problem', kind) } })
+  const model = createNotesModel({ engine, modelPath: () => setup.notesPath(), onLoaded: path => setup.notesModelLoaded(path), contextSize: memory.contextSize, ...(memory.releaseSpeech ? { beforeLoad: releaseIdleSpeech } : {}), remote: openRouter.remote })
   // first run: the notes model lands after recording already works; jobs wait in the queue for it
   // the embedding model (meaning search across meetings) runs in the same worker and is let go with the notes model
   const embedder = createEmbedder({ engine, modelPath: () => setup.installed()?.embed, id: bundledCatalog.embedding.id, dims: bundledCatalog.embedding.dims })
-  const queue = createQueue({ recording: () => !!activeMeeting(), smallMac, idleMs: memory.idleMs, backlogMs: transcriptionBacklogMs, onIdle: () => { void model.unload().catch(e => console.error('letting the notes model go failed', e)); void embedder.unload() }, modelReady: () => !!setup.notesPath() })
+  const queue = createQueue({ recording: () => !!activeMeeting(), smallMac, idleMs: memory.idleMs, backlogMs: transcriptionBacklogMs, onIdle: () => { void model.unload().catch(e => console.error('letting the notes model go failed', e)); void embedder.unload() }, modelReady: () => openRouter.chatOn() || !!setup.notesPath() })
   ipcMain.handle('setup:remove-upgrade', () => setup.removeUpgrade(remove => queue.enqueue(async () => {
     await model.unload()
     remove()
@@ -634,7 +644,7 @@ app.whenReady().then(() => {
   let resumingId: string | null = null
   const removeRecording = (id: string, automatic = false) => deleteRecording(id, {
     store, dirOf: id => join(userDataDir(), 'meetings', id),
-    busy: id => resumingId === id || stopSavePending(id),
+    busy: id => resumingId === id || stopSavePending(id) || savedTranscriptions.owns(id),
     settle: async id => { await rejoined; await recordingFinished(id); await transcriptFinished(id) },
     removed: id => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('audio:deleted', id) },
     ...(automatic ? { keep: endedAt => keepsRecording(loadSettings(settingsFile), endedAt) } : {}),
@@ -646,11 +656,22 @@ app.whenReady().then(() => {
     summaryLanguage: () => summaryLanguageSetting(loadSettings(settingsFile)),
     store, queue, model, language: meetingLanguage, onStop: onMeetingStopSaved, named: (id) => callNames.finished(id), earlier: (id) => readAhead.parts(id), me,
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) },
+    // Cloud AI: speaker labels first, then the notes (written once the new transcript is in, or with the old one if that fails)
+    refine: (id) => {
+      const m = store.meeting(id)
+      if (!openRouter.speakersOn() || !m || m.trashedAt != null || m.state === 'recording' || m.transcriptionPending || transcriptionBusy(m.transcriptionState) || stopSavePending(id) || savedTranscriptions.owns(id)) return false
+      if (!(['me', 'them'] as const).some((t) => !!trackFile(meetingDir(id), t, audioKinds))) return false
+      void savedTranscriptions.start(id, true, { refine: true })
+      return true
+    },
     send: (v) => win?.webContents.send('notes:changed', v),
     // the notes are written: the meeting goes into the library for chat across meetings
     changed: () => { win?.webContents.send('meetings:changed'); void indexer.schedule() },
   })
   let finishing = false, discardUnsaved = false
+  const cloudTranscribe = createCloudTranscriber({ client: openRouter.client, model: openRouter.sttModel, options: openRouter.sttOptions, spoken: spokenOfMeeting,
+    previous: (id) => store.segments(id, { hidden: true }), label: (n) => t('Speaker {n}', { n }),
+    onLanguage: (id, name) => { try { store.updateMeeting(id, { language: name }) } catch (e) { console.error('saving the language failed', e) } } })
   const savedTranscriptions = createSavedTranscriptions({
     store, ready: () => !!setup.installed()?.asr, recording: () => !!activeMeeting() || !!resumingId || finishing,
     tracks: async id => {
@@ -663,7 +684,9 @@ app.whenReady().then(() => {
       }
       return tracks
     },
-    transcribe: (id,tracks,options) => transcribeRecorded(id,tracks,undefined,options),
+    // with speaker labels on, a transcript redone (after the meeting, or Transcribe again) comes from OpenRouter
+    transcribe: (id,tracks,options) => openRouter.speakersOn() && options.save ? cloudTranscribe(id,tracks,options) : transcribeRecorded(id,tracks,undefined,options),
+    refineFailed: (_id, error) => { openRouter.tell(error); for (const w of BrowserWindow.getAllWindows()) w.webContents.send('openrouter:problem', 'speakers') },
     draft:id=>win?.webContents.send('transcript:draft',id),
     changed: (id,replaced) => {win?.webContents.send('meetings:changed');if(replaced){win?.webContents.send('transcript:replaced',id);void indexer.schedule()}},
     summarize: id => {void notes.writeAgain(id)},
@@ -730,7 +753,7 @@ app.whenReady().then(() => {
       win?.webContents.send('conversations:changed', v)
       if (v.chips.length === 1 && v.chips[0].kind === 'meeting') win?.webContents.send('chat:changed', { ...v, meetingId: v.chips[0].id })
     }, sendList: (l) => win?.webContents.send('conversations:list', l),
-    waitsForMeeting: () => smallMac && !!activeMeeting(), waitsForModel: () => !setup.notesPath(),
+    waitsForMeeting: () => smallMac && !!activeMeeting(), waitsForModel: () => !openRouter.chatOn() && !setup.notesPath(),
     // a meeting read in ahead during a recording only where reading ahead is allowed (32 GB and up; the fake Mac is big)
     warmAllowed: () => !activeMeeting() || (isFake() ? !smallMac : readAheadAllowed(os.totalmem())),
   })
@@ -911,10 +934,36 @@ app.whenReady().then(() => {
   ipcMain.handle('meetings:get', (_e, id: unknown) => {
     const m = isId(id) ? getMeeting(id) : undefined
     if (m) store.noteOpened(m.id)
-    return m && { ...m, ...(recordingPaused(m.id) ? { paused: true } : {}) }
+    return m && { ...m, spoken: spokenOfMeeting(m.id), ...(recordingPaused(m.id) ? { paused: true } : {}) }
   })
   // the person's own title for a note
   ipcMain.handle('meetings:rename', (_e, id: unknown, title: unknown) => { if (isId(id) && typeof title === 'string') renameMeeting(id, title) })
+  // one voice of the other side named by hand (Speaker 1 → Dana): every line of it, never while it records or is transcribed again
+  ipcMain.handle('meetings:rename-speaker', (_e, id: unknown, from: unknown, to: unknown) => {
+    const m = isId(id) ? store.meeting(id) : undefined
+    const name = typeof to === 'string' ? to.replace(/\s+/g, ' ').trim() : ''
+    if (!m || (from !== null && typeof from !== 'string') || !name || name.length > 80 || /\p{Cc}/u.test(name) || name === AUDIO_SPEAKER || name === 'me' || name === from) return false
+    if (m.state === 'recording' || transcriptionBusy(m.transcriptionState) || savedTranscriptions.owns(m.id)) return false
+    if (!store.renameSpeaker(m.id, from, name)) return false
+    win?.webContents.send('transcript:speakers', m.id)
+    sendWidgetTranscript('transcript:speakers', m.id)
+    win?.webContents.send('meetings:changed')
+    void indexer.schedule()
+    return true
+  })
+  // the language people speak in this meeting: whisper hears it from the next chunk on; a finished meeting with its audio
+  // can be transcribed again in it (offerAgain), never by itself
+  ipcMain.handle('meetings:set-spoken', (_e, id: unknown, v: unknown) => {
+    const m = isId(id) ? store.meeting(id) : undefined
+    if (!m || !isSpoken(v) || m.trashedAt != null) return { ok: false, offerAgain: false }
+    const before = spokenOfMeeting(m.id)
+    store.updateMeeting(m.id, { spoken: v })
+    spokenChanged(m.id)
+    win?.webContents.send('meetings:changed')
+    const finished = m.state === 'stopped' || m.state === 'done'
+    const hasAudio = (['me', 'them'] as const).some((t) => !!trackFile(meetingDir(m.id), t, audioKinds))
+    return { ok: true, offerAgain: v !== before && finished && hasAudio && !transcriptionBusy(m.transcriptionState) && !stopSavePending(m.id) }
+  })
   // who was there, by hand, or from a calendar event picked for the note: unedited notes are written again with them
   ipcMain.handle('meetings:rename-attendee', (_e, id: unknown, index: unknown, name: unknown, expected: unknown) => {
     if (!isId(id) || typeof index !== 'number' || typeof name !== 'string') return false

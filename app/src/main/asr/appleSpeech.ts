@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import type { Spoken } from '../../shared/spoken'
+import { AUTO, codeOfWhisperName, isoCode, whisperName, type Spoken } from '../../shared/spoken'
 
 /**
  * Apple's on-device speech (SpeechAnalyzer and SpeechTranscriber, macOS 26 on Apple Silicon) for the live words: it
@@ -11,20 +11,16 @@ export type SpeechHost = { platform: string; arch: string; /** the kernel's vers
 
 export const appleSpeechAvailable = (h: SpeechHost): boolean => h.platform === 'darwin' && h.arch === 'arm64' && Number(h.osRelease.split('.')[0]) >= 25
 
-/** whisper's language names → ISO 639-1 codes (what a locale starts with) */
-const CODES: Record<string, string> = {
-  english: 'en', spanish: 'es', german: 'de', french: 'fr', japanese: 'ja', italian: 'it', portuguese: 'pt', chinese: 'zh', korean: 'ko',
-  dutch: 'nl', russian: 'ru', arabic: 'ar', hindi: 'hi', turkish: 'tr', polish: 'pl', swedish: 'sv', danish: 'da', norwegian: 'no', finnish: 'fi',
-  ukrainian: 'uk', czech: 'cs', greek: 'el', hebrew: 'he', indonesian: 'id', vietnamese: 'vi', thai: 'th', romanian: 'ro', hungarian: 'hu', catalan: 'ca', malay: 'ms',
-}
-export const languageCode = (whisperName: string | null | undefined): string | null => {
-  if (!whisperName) return null
-  const n = whisperName.toLowerCase()
-  return CODES[n] ?? (/^[a-z]{2}$/.test(n) ? n : null)
+/** whisper's language names → ISO 639 codes (what a locale starts with); a bare two-letter code passes as it is */
+export const languageCode = (name: string | null | undefined): string | null => {
+  if (!name) return null
+  const n = name.toLowerCase()
+  const code = codeOfWhisperName(n)
+  return code ? isoCode(code) : /^[a-z]{2}$/.test(n) ? n : null
 }
 
 /** whisper's name for a language code ('en' → 'english'), as its guesses name them */
-export const languageName = (code: string): string => Object.keys(CODES).find((n) => CODES[n] === code) ?? code
+export const languageName = (code: string): string => whisperName(code)
 
 const lang = (locale: string) => locale.split(/[-_]/)[0].toLowerCase()
 const region = (locale: string) => locale.split(/[-_]/)[1]?.toUpperCase()
@@ -52,16 +48,17 @@ export function pickSpeechLocale(o: { supported: string[]; detected?: string | n
 }
 
 /**
- * The locale for a new meeting under the spoken language picked: English only listens in English (the interface's region
- * when it is English, else the biggest), or not at all when the Mac has no English model; Multi-language is pickSpeechLocale.
+ * The locale for a new meeting in the meeting's spoken language: a language listens in it (the interface's region when it
+ * is that language, else the biggest), or not at all when the Mac has no model for it; Auto-detect is pickSpeechLocale.
  */
 export function wantedSpeechLocale(o: { spoken: Spoken; supported: string[]; last?: string | null; ui: string }): string | null {
-  if (o.spoken === 'multi') return pickSpeechLocale(o)
-  return pickSpeechLocale({ supported: o.supported.filter((l) => lang(l) === 'en'), detected: 'english', ui: o.ui })
+  if (o.spoken === AUTO) return pickSpeechLocale(o)
+  const code = isoCode(o.spoken)
+  return pickSpeechLocale({ supported: o.supported.filter((l) => lang(l) === code), detected: whisperName(o.spoken), ui: o.ui })
 }
 
-/** Apple may keep listening in this locale under the spoken language picked (a recording switched to English only) */
-export const speechFits = (spoken: Spoken, locale: string): boolean => spoken === 'multi' || lang(locale) === 'en'
+/** Apple may keep listening in this locale in the meeting's spoken language (a recording switched to another language) */
+export const speechFits = (spoken: Spoken, locale: string): boolean => spoken === AUTO || lang(locale) === isoCode(spoken)
 
 /** whisper heard another language than the one Apple listens in: its words are not to be trusted for this meeting */
 export const speechDisagrees = (locale: string, detected: string | null | undefined): boolean => {

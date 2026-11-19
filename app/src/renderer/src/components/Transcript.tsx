@@ -17,6 +17,7 @@ import { rememberedScroll, useScrollMemory } from '../useScrollMemory'
 import { followGlide, scrollBehavior } from '../motion'
 import { followTarget, inView } from '../../../shared/follow'
 import { afterFinal, joinWords } from '../../../shared/liveWords'
+import { AUDIO_SPEAKER } from '../../../shared/audioUpload'
 
 type Line = Omit<Segment, 'id'> & { id?: number; previous?:boolean }
 const key = (l: { track: string; startMs: number }) => `${l.track}:${l.startMs}`
@@ -402,7 +403,8 @@ export function Transcript({ id, notice, processing=false, replacing=false, reco
               <li key={key(first)} data-testid="transcript-turn" data-track={first.track} className={`transcript-turn flex flex-col gap-[5px] ${me ? 'items-end' : 'items-start'}`}>
                 {/* the other side's name heads their turn; the mic's side needs none, its bubbles sit at the end */}
                 <p className={me ? 'sr-only' : 'turn-head flex items-baseline gap-2 px-1 text-xs'}>
-                  <span data-testid="transcript-who" data-color={color} data-folder-color={color === undefined ? undefined : SPEAKER_COLORS[color]} className={`line-who font-medium ${me ? '' : 'text-muted'} ${named ? 'name-in' : 'invisible'}`}>{who(first)}</span>
+                  <SpeakerName meetingId={id} speaker={first.speaker} label={who(first)} editable={!me && named && !recording && !processing && first.speaker !== AUDIO_SPEAKER}
+                    color={color} className={`line-who font-medium ${me ? '' : 'text-muted'} ${named ? 'name-in' : 'invisible'}`} />
                   <time className="turn-time tabular-nums text-muted">{clock(first.startMs)}</time>
                 </p>
                 {bubbles(turn).map((b) => (
@@ -437,4 +439,29 @@ export function Transcript({ id, notice, processing=false, replacing=false, reco
       {active && playable && <div ref={playbackDock} className="transcript-player-dock"><Player ref={player} id={id} tracks={tracks} onTime={onTime} onPlaying={setAudioOn} onBusy={on => visibility.current?.pin(on)} /></div>}
     </Surface>
   )
+}
+
+/**
+ * The name heading a turn of the other side. After the meeting it is a button: click it to name that voice ("Speaker 1"
+ * → Dana) on every line of it in this meeting. Return or clicking away saves, Escape keeps the old one.
+ */
+function SpeakerName({ meetingId, speaker, label, editable, color, className }: { meetingId: string; speaker: string | null; label: string; editable: boolean; color?: number; className: string }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const cancelled = useRef(false)
+  const colors = { 'data-color': color, 'data-folder-color': color === undefined ? undefined : SPEAKER_COLORS[color] }
+  if (!editable) return <span data-testid="transcript-who" {...colors} className={className}>{label}</span>
+  if (editing) return (
+    <input data-testid="speaker-rename-input" autoFocus value={draft} maxLength={80} aria-label={t('Rename speaker')} dir="auto"
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.stopPropagation(); cancelled.current = true; e.currentTarget.blur() } }}
+      onBlur={() => {
+        setEditing(false)
+        const name = draft.trim()
+        if (!cancelled.current && name && name !== label) void window.yogurt.meetings.renameSpeaker(meetingId, speaker, name).catch(() => {})
+        cancelled.current = false
+      }}
+      className="rounded-md border border-line bg-bg px-1.5 py-0 text-xs font-medium text-ink outline-none" />
+  )
+  return <button data-testid="transcript-who" {...colors} title={t('Rename speaker')} onClick={() => { setDraft(label); setEditing(true) }} className={`${className} rounded hover:underline`}>{label}</button>
 }

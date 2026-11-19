@@ -44,14 +44,26 @@ export type Settings = { theme?: 'light' | 'dark'; language?: string; /** what t
   hideEventsWithoutCallLink?: boolean
   /** names, products and acronyms to spell right in transcripts and notes (shared/jargon.ts) */
   jargon?: string[]
-  /** the language people speak in meetings: English only unless 'multi' (shared/spoken.ts) */
+  /** the language new meetings start in (shared/spoken.ts): English when left out; 'multi' from before reads as Auto-detect */
   spoken?: Spoken
   /** the default for newly written summaries; the meeting's language when left out */
   summaryLanguage?: string
   /** new versions download by themselves; on unless turned off */
-  autoUpdate?: boolean }
+  autoUpdate?: boolean
+  /** Cloud AI: the OpenRouter API key, sealed like calendar links (main/secrets.ts); nothing goes to OpenRouter unless a switch below is on */
+  openRouterKey?: string
+  /** summaries, titles and answers written by an OpenRouter model instead of the one on this computer; off unless turned on */
+  openRouterChat?: boolean
+  /** the OpenRouter model for summaries, titles and answers (e.g. "anthropic/claude-sonnet-5.5") */
+  openRouterChatModel?: string
+  /** after each meeting, its audio is transcribed again by an OpenRouter speech model that tells voices apart; off unless turned on */
+  openRouterSpeakers?: boolean
+  /** the OpenRouter speech model for that (e.g. "deepgram/nova-3") */
+  openRouterSttModel?: string
+  /** advanced: the provider's own options as JSON, in place of the built-in ones that turn on its speaker labels */
+  openRouterSttOptions?: string }
 
-/** "English only" unless Multi-language was picked */
+/** the spoken language new meetings start in: English unless another (or Auto-detect) was picked */
 export const spokenSetting = (s: Settings): Spoken => spokenOf(s.spoken)
 
 export const summaryLanguageSetting = (s: Settings): string => isLocale(s.summaryLanguage) ? s.summaryLanguage : ''

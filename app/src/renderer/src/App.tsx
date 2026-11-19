@@ -11,7 +11,8 @@ import { Shortcuts } from './components/Shortcuts'
 import { Search } from './components/Search'
 import { Workspace } from './components/Workspace'
 import { command, onMac } from './keys'
-import { TrashToast } from './components/TrashToast'
+import { TrashToast, toasts } from './components/TrashToast'
+import { cloudProblemText } from './components/OpenRouterSettings'
 import { Trash } from './screens/Trash'
 import { ChatPage } from './screens/ChatPage'
 import { BootScreen } from './components/BootScreen'
@@ -83,6 +84,8 @@ export function App() {
   // first run: the intro and the questions still to ask; nothing on later launches
   const [plan, setPlan] = useState<OnboardingPlan>()
   useEffect(() => { void window.yogurt.onboarding.plan().then(setPlan, () => setPlan({ intro: false, steps: [] })) }, [])
+  // Cloud AI: a summary, answer or speaker labels that OpenRouter refused, said once wherever the person is
+  useEffect(() => window.yogurt.openRouter.onProblem((kind) => { toasts.add({ id: `openrouter-${kind}`, data: { testId: 'openrouter-problem' }, title: cloudProblemText(kind) }) }), [])
   const firstRunDone = !!plan && !plan.intro && plan.steps.length === 0
   const ready = setup?.phase === 'ready' && firstRunDone
   // the launch screen: up while Yogurt starts, and once it has shown, long enough to be seen

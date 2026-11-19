@@ -2,6 +2,7 @@ import { audioUpload } from './audioUpload'
 import type { WidgetLayout } from '../shared/widgetMorph'
 import { contextBridge, ipcRenderer } from 'electron'
 import { capabilities, platformOf } from '../shared/platform'
+import type { CloudNotice } from '../shared/openRouter'
 import type { ChatView, ConversationSummary, ConversationView, NoteView, PromptAction, SetupState, UpdateStatus, WidgetView, YogurtApi } from '../shared/types'
 
 const api: YogurtApi = {
@@ -73,6 +74,8 @@ const api: YogurtApi = {
     setPaused: (id, paused) => ipcRenderer.invoke('meetings:set-paused', id, paused),
     retryStopSave: (id) => ipcRenderer.invoke('meetings:retry-stop-save', id),
     rename: (id, title) => ipcRenderer.invoke('meetings:rename', id, title),
+    setSpoken: (id, spoken) => ipcRenderer.invoke('meetings:set-spoken', id, spoken),
+    renameSpeaker: (id, from, to) => ipcRenderer.invoke('meetings:rename-speaker', id, from, to),
     delete: (id) => ipcRenderer.invoke('meetings:delete', id),
     trash: (id) => ipcRenderer.invoke('meetings:trash', id),
     restore: (id) => ipcRenderer.invoke('meetings:restore', id),
@@ -214,6 +217,13 @@ const api: YogurtApi = {
     nudge: () => ipcRenderer.invoke('onboarding:nudge'),
     dismissNudge: () => ipcRenderer.invoke('onboarding:dismiss-nudge'),
     restoreNudge: () => ipcRenderer.invoke('onboarding:restore-nudge'),
+  },
+  openRouter: {
+    state: () => ipcRenderer.invoke('openrouter:state'),
+    setKey: (key) => ipcRenderer.invoke('openrouter:set-key', key),
+    set: (patch) => ipcRenderer.invoke('openrouter:set', patch),
+    models: (kind) => ipcRenderer.invoke('openrouter:models', kind),
+    onProblem: (fn) => { const f = (_e: unknown, k: CloudNotice) => fn(k); ipcRenderer.on('openrouter:problem', f); return () => { ipcRenderer.off('openrouter:problem', f) } },
   },
   mcp: {
     status: () => ipcRenderer.invoke('mcp:status'),

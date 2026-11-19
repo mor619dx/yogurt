@@ -10,11 +10,23 @@ export function createSavedTranscriptions(d: {
   transcribe: (id: string, tracks: Partial<Record<Track,AsyncIterable<Float32Array>>>, options: RecordedOptions) => Promise<boolean>
   draft?: (id:string) => void
   changed: (id: string,replaced?:boolean) => void; summarize: (id: string) => void
+  /** speaker labels after a meeting (start with refine) failed or were stopped: the transcript there was is kept */
+  refineFailed?: (id: string, error?: unknown) => void
 }) {
   let running: { id:string; abort:AbortController; stopped:boolean } | undefined
+  /** meetings whose summary waits for their transcript to be redone (speaker labels after the meeting) */
+  const refining=new Set<string>()
+  /** a refine that failed or was stopped: the old transcript stays, and the summary that waited for it is written */
+  const fallBack=(id:string,error?:unknown)=>{
+    if(!refining.delete(id))return false
+    if(d.store.meeting(id)?.transcriptionAgain){d.store.cancelTranscriptionReplacement(id);d.draft?.(id)}
+    d.changed(id);d.refineFailed?.(id,error)
+    if(!d.store.notes(id).enhanced?.trim())d.summarize(id)
+    return true
+  }
   let draining=false, quitting=false
   const set=(id:string,state:TranscriptionState)=>{if(d.store.meeting(id)){d.store.updateMeeting(id,{transcriptionState:state});d.changed(id)}}
-  const stopped=(id:string)=>{if(d.store.meeting(id)?.transcriptionAgain){d.store.cancelTranscriptionReplacement(id);d.draft?.(id);d.changed(id)}else set(id,'stopped')}
+  const stopped=(id:string)=>{if(fallBack(id))return;if(d.store.meeting(id)?.transcriptionAgain){d.store.cancelTranscriptionReplacement(id);d.draft?.(id);d.changed(id)}else set(id,'stopped')}
   const pump=async()=>{
     if(draining||quitting)return
     draining=true
@@ -37,13 +49,15 @@ export function createSavedTranscriptions(d: {
           if(!d.store.meeting(id)||d.store.meeting(id)?.trashedAt!=null)continue
           if(job.abort.signal.aborted){if(job.stopped)stopped(id);else set(id,d.recording()?'waiting-recording':'queued');continue}
           if(!complete)throw new Error('Saved transcription incomplete')
-          if(meeting.transcriptionAgain&&!d.store.transcriptionDraft(id).some(line=>!line.hidden&&line.text.trim())){d.store.cancelTranscriptionReplacement(id);d.changed(id);continue}
+          if(meeting.transcriptionAgain&&!d.store.transcriptionDraft(id).some(line=>!line.hidden&&line.text.trim())){if(fallBack(id))continue;d.store.cancelTranscriptionReplacement(id);d.changed(id);continue}
+          refining.delete(id)
           if(meeting.transcriptionAgain)d.store.commitTranscriptionDraft(id)
           else d.store.updateMeeting(id,{transcriptionPending:false,transcriptionState:'done'})
           d.changed(id,!!meeting.transcriptionAgain)
           // Replacing a transcript must not overwrite an existing or edited summary.
           if(!d.store.notes(id).enhanced?.trim())d.summarize(id)
         } catch(error) {
+          if(d.store.meeting(id)&&!job.stopped&&!job.abort.signal.aborted&&fallBack(id,error)){console.error('Speaker labels failed; the transcript there was is kept',id,error);continue}
           if(d.store.meeting(id)){if(job.stopped)stopped(id);else set(id,job.abort.signal.aborted?'queued':'error')}
           if(!job.abort.signal.aborted)console.error('Saved transcription failed',id,error)
         } finally { if(running===job)running=undefined }
@@ -51,9 +65,11 @@ export function createSavedTranscriptions(d: {
     } finally {draining=false;if(!quitting&&!d.recording()&&d.ready()&&d.store.untranscribedMeetings().some(m=>m.transcriptionState==='queued'))queueMicrotask(()=>void pump())}
   }
   return {
-    async start(id:string,again=false) {
+    /** refine: the transcript redone right after the meeting (speaker labels); its summary waits for it, and falls back to the old one */
+    async start(id:string,again=false,o?:{refine?:boolean}) {
       const meeting=d.store.meeting(id)
       if(!meeting||meeting.trashedAt!=null||meeting.state==='recording'||running?.id===id)return false
+      if(o?.refine)refining.add(id)
       if(again)d.store.beginTranscriptionReplacement(id)
       d.store.updateMeeting(id,{transcriptionPending:true,transcriptionState:'queued'});d.changed(id);void pump();return true
     },

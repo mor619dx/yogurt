@@ -45,7 +45,11 @@ export function hookNotes(p: {
   peopleRewriteMs?: number
   /** the person's own name, so the invite's other person is known */
   me?: () => string
+  /** after the meeting its transcript is redone first (speaker labels): true means it started, and the notes wait for it */
+  refine?: (id: string) => boolean
 }) {
+  /** meetings whose notes wait for their transcript to be redone; writeAgain then writes them */
+  const refining = new Set<string>()
   const stopped = new Set<string>()
   const stopping = new Map<string, Promise<void>>()
   const resuming = new Map<string, object>()
@@ -240,7 +244,10 @@ export function hookNotes(p: {
       await p.transcribed(m.id)
       // the names from the call are quick; a stuck pass never holds the notes back for long
       if (p.named) await upTo(p.named(m.id), p.namesWaitMs ?? NAMES_WAIT_MS)
-      if (!resuming.has(m.id) && afterStop.get(m.id) === done) await queueWrite(m.id)
+      if (!resuming.has(m.id) && afterStop.get(m.id) === done) {
+        if (p.refine?.(m.id)) { refining.add(m.id); return }
+        await queueWrite(m.id)
+      }
     }).catch((e) => console.error('notes after the meeting failed', e)).finally(() => { if (afterStop.get(m.id) === done) afterStop.delete(m.id) })
     afterStop.set(m.id, done)
   })
@@ -327,7 +334,8 @@ export function hookNotes(p: {
       if (resuming.has(id) || p.store.meeting(id)?.state === 'recording') return Promise.resolve()
       if (!retryDrafts(id)) return Promise.resolve()
       const s = live.get(id)?.status
-      if (s === 'waiting' || s === 'writing') return Promise.resolve()
+      // still 'waiting' since the meeting stopped: its transcript was being redone, and now it is in
+      if (s === 'writing' || (s === 'waiting' && !refining.delete(id))) return Promise.resolve()
       return queueWrite(id, note, allowPartial)
     },
     /** at launch: meetings a quit or crash left without notes get them now, one at a time */

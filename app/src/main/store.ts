@@ -8,6 +8,7 @@ import { attendeeMembership, matchingOwnEmail, ownAddress, personEmail } from '.
 import type { FolderSuggestionRecord } from '../shared/folderSuggestion'
 import { unusedPreparedNote } from '../shared/agendaNote'
 import { speakerOrder } from '../shared/speakerColors'
+import { codeOfWhisperName } from '../shared/spoken'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { sourceOf, type TitleSource } from './titles'
@@ -33,6 +34,8 @@ export type Meeting = {
   app: string | null; attendees: Person[]; state: 'prepared' | 'recording' | 'stopped' | 'done'
   /** the language most of it was said in (whisper's name, e.g. "spanish"), once its transcript is done */
   language: string | null
+  /** the language people speak in it (shared/spoken.ts), picked in its note; the Settings default when left out */
+  spoken?: string
   /** where the title came from: only a generic or auto one is replaced by a title from the notes */
   titleSource: TitleSource
   /** Recorded duration when pauses or resumed sessions make wall duration inaccurate. */
@@ -61,6 +64,7 @@ const toMeeting = (r: Row): Meeting => ({
   id: String(r.id), title: String(r.title), startedAt: Number(r.started_at), endedAt: r.ended_at == null ? null : Number(r.ended_at),
   eventId: r.event_id == null ? null : String(r.event_id), app: r.app == null ? null : String(r.app),
   attendees: JSON.parse(String(r.attendees)), state: r.state as Meeting['state'], language: r.language == null ? null : String(r.language),
+  ...(r.spoken == null ? {} : { spoken: String(r.spoken) }),
   titleSource: (r.title_source ?? 'user') as TitleSource,
   ...(r.source == null ? {} : { source: String(r.source) }),
   ...(r.source_id == null ? {} : { sourceId: String(r.source_id) }),
@@ -227,6 +231,15 @@ export class Store {
     if (!meetingCols.includes('duration_ms')) this.db.exec('ALTER TABLE meetings ADD COLUMN duration_ms INTEGER')
     if (!meetingCols.includes('language')) this.db.exec('ALTER TABLE meetings ADD COLUMN language TEXT')
     if (!meetingCols.includes('trashed_at')) this.db.exec('ALTER TABLE meetings ADD COLUMN trashed_at INTEGER')
+    if (!meetingCols.includes('spoken')) {
+      // meetings from before languages were picked one by one: the language whisper heard, where it heard one
+      this.db.exec('ALTER TABLE meetings ADD COLUMN spoken TEXT')
+      const set = this.db.prepare('UPDATE meetings SET spoken = ? WHERE id = ?')
+      for (const r of this.db.prepare('SELECT id, language FROM meetings WHERE language IS NOT NULL').all() as Row[]) {
+        const code = codeOfWhisperName(String(r.language))
+        if (code) set.run(code, String(r.id))
+      }
+    }
     if (!meetingCols.includes('title_source')) {
       // meetings from before: worked out from the title and the event, as a new one would be
       this.db.exec("ALTER TABLE meetings ADD COLUMN title_source TEXT NOT NULL DEFAULT 'user'")
@@ -311,20 +324,23 @@ export class Store {
   }
   close() { this.db.close() }
 
+  /** the spoken language a new meeting starts with (Settings → Language); none: the default is read when it matters */
+  newSpoken: () => string | undefined = () => undefined
   createMeeting(m: Omit<Meeting, 'id' | 'language' | 'titleSource'> & { language?: string | null; titleSource?: TitleSource }, id: string = randomUUID()): Meeting {
     const language = m.language ?? null
+    const spoken = m.spoken ?? this.newSpoken() ?? null
     const ownEmail = m.eventId ? ownAddress(m.ownEmail) : null
     this.rememberOwnEmail(ownEmail)
     const titleSource = m.titleSource ?? sourceOf(m.title, m.eventId)
-    this.db.prepare('INSERT INTO meetings (id, title, started_at, ended_at, event_id, app, attendees, state, language, title_source, duration_ms, event_started_at, event_ended_at, event_title, event_calendar_name, event_calendar_source, source, transcription_pending, own_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, m.title, m.startedAt, m.endedAt, m.eventId, m.app, JSON.stringify(m.attendees), m.state, language, titleSource, m.durationMs ?? null, m.eventStartedAt ?? null, m.eventEndedAt ?? null, m.eventTitle ?? null, m.eventCalendarName ?? null, m.eventCalendarSource ?? null, m.source ?? null, Number(!!m.transcriptionPending), ownEmail)
+    this.db.prepare('INSERT INTO meetings (id, title, started_at, ended_at, event_id, app, attendees, state, language, title_source, duration_ms, event_started_at, event_ended_at, event_title, event_calendar_name, event_calendar_source, source, transcription_pending, own_email, spoken) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, m.title, m.startedAt, m.endedAt, m.eventId, m.app, JSON.stringify(m.attendees), m.state, language, titleSource, m.durationMs ?? null, m.eventStartedAt ?? null, m.eventEndedAt ?? null, m.eventTitle ?? null, m.eventCalendarName ?? null, m.eventCalendarSource ?? null, m.source ?? null, Number(!!m.transcriptionPending), ownEmail, spoken)
     rememberPeople(this.db, m.attendees)
     return this.meeting(id)!
   }
   updateMeeting(id: string, patch: Partial<Omit<Meeting, 'id'>>) {
     if (patch.ownEmail) this.rememberOwnEmail(patch.ownEmail)
     if (patch.attendees) rememberPeople(this.db, patch.attendees)
-    const col: Record<string, string> = { title: 'title', startedAt: 'started_at', endedAt: 'ended_at', eventId: 'event_id', eventStartedAt: 'event_started_at', eventEndedAt: 'event_ended_at', eventTitle: 'event_title', eventCalendarName: 'event_calendar_name', eventCalendarSource: 'event_calendar_source', ownEmail: 'own_email', app: 'app', attendees: 'attendees', state: 'state', language: 'language', titleSource: 'title_source', durationMs: 'duration_ms', transcriptionPending: 'transcription_pending', transcriptionState: 'transcription_state', transcriptionAgain: 'transcription_again' }
+    const col: Record<string, string> = { title: 'title', startedAt: 'started_at', endedAt: 'ended_at', eventId: 'event_id', eventStartedAt: 'event_started_at', eventEndedAt: 'event_ended_at', eventTitle: 'event_title', eventCalendarName: 'event_calendar_name', eventCalendarSource: 'event_calendar_source', ownEmail: 'own_email', app: 'app', attendees: 'attendees', state: 'state', language: 'language', spoken: 'spoken', titleSource: 'title_source', durationMs: 'duration_ms', transcriptionPending: 'transcription_pending', transcriptionState: 'transcription_state', transcriptionAgain: 'transcription_again' }
     const keys = Object.keys(patch).filter((k) => k in col && (patch as Row)[k] !== undefined)
     if (!keys.length) return
     const vals = keys.map((k) => (k === 'attendees' ? JSON.stringify(patch.attendees) : (k === 'transcriptionPending' || k === 'transcriptionAgain') ? Number(k === 'transcriptionPending' ? patch.transcriptionPending : patch.transcriptionAgain) : (patch as Row)[k]) as string | number | null)
@@ -510,6 +526,24 @@ export class Store {
     try {
       for (const id of ids) del.run(id)
       this.db.exec('COMMIT')
+    } catch (e) { this.db.exec('ROLLBACK'); throw e }
+  }
+
+  /**
+   * One voice of the other side renamed in a meeting ("Speaker 1" → "Dana", or Them → a name): every line of it, and its
+   * place in the colour order, so its colour stays. Ask finds the new name once the meeting is read in again.
+   */
+  renameSpeaker(meetingId: string, from: string | null, to: string): number {
+    this.db.exec('BEGIN')
+    try {
+      const n = Number(this.db.prepare("UPDATE segments SET speaker = ? WHERE meeting_id = ? AND track = 'them' AND speaker IS ?").run(to, meetingId, from).changes)
+      const row = this.db.prepare('SELECT speaker_order FROM meetings WHERE id = ?').get(meetingId) as Row | undefined
+      const order = row ? JSON.parse(String(row.speaker_order)) as string[] : []
+      const next = order.includes(to) ? order.filter((s) => s !== from) : order.map((s) => (s === from ? to : s))
+      this.db.prepare('UPDATE meetings SET speaker_order = ? WHERE id = ?').run(JSON.stringify(next), meetingId)
+      this.db.prepare("UPDATE library_sources SET signature='' WHERE meeting_id=?").run(meetingId)
+      this.db.exec('COMMIT')
+      return n
     } catch (e) { this.db.exec('ROLLBACK'); throw e }
   }
 

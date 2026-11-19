@@ -30,10 +30,11 @@
 
 - **Live transcripts.** Yogurt records calls and turns speech into text as you talk.
 - **Meeting summaries.** Yogurt writes up the conversation and any notes you add.
-- **Private by default.** Your audio, transcripts and AI processing stay on your computer.
+- **Private by default.** Your audio, transcripts and AI processing stay on your computer, unless you turn on Cloud AI.
 - **Free and open source.** You can use Yogurt without an account.
 - **Who said what.** Yogurt names speakers from Zoom, Teams and Meet on Mac, Windows and Linux.
-- **Languages.** Multi-language mode transcribes 99 languages, follows each side of the call in its own language, and keeps up when someone switches languages mid-meeting.
+- **Languages.** Each meeting has its own spoken language, picked from 99 in the note's footer, so nothing is guessed. Auto-detect is there when you don't know it.
+- **Cloud AI (optional).** With your own OpenRouter key, summaries, titles and answers can come from the model you pick, and after each meeting a speech model you pick can tell the other side's voices apart (Speaker 1, Speaker 2…, or the names the call app showed). Click a speaker's name in the transcript to rename them. Off by default.
 - **Recording reminders.** Yogurt offers to record when a supported call starts.
 - **Answers with sources.** Yogurt answers questions across meetings and links to the source.
 - **Folders and search.** You can find meetings by folder, title, notes or transcript.
@@ -51,7 +52,7 @@ https://github.com/user-attachments/assets/da16b894-beb1-491a-89e1-fd10666dc9b8
 2. **Transcribe.** Yogurt uses whisper.cpp and, on supported Macs, Apple SpeechAnalyzer.
 3. **Summarize and ask.** A local open-weight model runs through llama.cpp.
 
-Meeting data stays local; Yogurt goes online for model downloads and update checks.
+Meeting data stays local; Yogurt goes online for model downloads and update checks, and to OpenRouter only if you turn on Cloud AI in Settings.
 
 <details><summary>Where your meetings, recordings, settings and models are stored</summary>
 
@@ -139,9 +140,9 @@ Meeting data stays local; Yogurt goes online for model downloads and update chec
 
 <br>
 
-> Pick **Multi-language** in **Settings → Language → Spoken language** to transcribe 99 languages. You can also switch from the **English** menu in a note’s footer before or during recording. English only is the default, and it’s the fastest and most accurate choice for English meetings.
+> Each meeting has its own spoken language, one of 99. Pick it from the language menu in the note’s footer, before, during or after recording; after a meeting, Yogurt offers to transcribe it again in the new language. **Settings → Language → Spoken language** sets the one new meetings start in (English unless you change it).
 >
-> In Multi-language mode, you and the other side of the call can each speak your own language, and Yogurt follows along when someone switches languages mid-meeting. Summaries follow the meeting’s main language, or the one you pick in **Settings → Summary language**. Answers in Ask follow your question’s language. Settings also offers 32 app languages.
+> **Auto-detect** leaves Whisper to hear the language, and follows along when someone switches languages mid-meeting. Summaries follow the meeting’s main language, or the one you pick in **Settings → Summary language**. Answers in Ask follow your question’s language. Settings also offers 32 app languages.
 
 </details>
 

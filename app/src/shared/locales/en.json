@@ -59,10 +59,6 @@
     "one": "1 meeting, with its notes, transcript and recordings, is removed from this computer for good.",
     "other": "{count} meetings, with their notes, transcripts and recordings, are removed from this computer for good."
   },
-  "{count} languages supported": {
-    "one": "{count} language supported",
-    "other": "{count} languages supported"
-  },
   "and {count} more": {
     "one": "and {count} more",
     "other": "and {count} more"

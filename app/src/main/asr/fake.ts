@@ -7,7 +7,7 @@ import { fakePrompts } from '../fake'
  * the chunk starts (the chunker cuts them at 0.5 s and 10.5 s on me, 5.2 s and 13.3 s on them).
  * Word times match simulated Apple's settled readings; a pause can split a phrase into shorter chunks.
  */
-const SAYS = {
+export const SAYS = {
   me: [
     { at: 500, end: 4000, text: 'Hi, thanks for joining. Can we go over the launch plan for next week?' },
     { at: 10_500, end: 12_400, text: 'Great. Who is writing the release notes?' },

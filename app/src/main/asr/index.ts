@@ -48,8 +48,8 @@ function speechOff(s: Session, why: string) {
 /** what the Mac's speech can do, read once at start-up (nothing where it is not available) */
 let speechLocales: SpeechLocales = { available: false, supported: [], installed: [] }
 let speechDeps: { ui: () => string; last: () => string | null; install: (locale: string) => Promise<boolean> } | undefined
-/** the spoken language picked (English only or Multi-language), read each time it matters */
-let spokenNow: () => Spoken = () => 'en'
+/** a meeting's spoken language (a language, or Auto-detect), read each time it matters: it can change while it records */
+let spokenNow: (meetingId?: string) => Spoken = () => 'en'
 const installing = new Set<string>()
 /**
  * The locale Apple's speech listens in for a new meeting, or null for whisper only. A wanted locale whose model is not on the
@@ -59,13 +59,13 @@ const decided = new Map<string, string | null>()
 export function speechLocaleFor(meetingId?: string): string | null {
   // one decision per meeting, whichever of the recorder and the transcription asks first
   if (meetingId && decided.has(meetingId)) return decided.get(meetingId)!
-  const out = decide()
+  const out = decide(meetingId)
   if (meetingId) { decided.set(meetingId, out); if (decided.size > 50) decided.delete(decided.keys().next().value!) }
   return out
 }
-function decide(): string | null {
+function decide(meetingId?: string): string | null {
   if (!speechDeps || !speechLocales.available) return null
-  const wanted = wantedSpeechLocale({ spoken: spokenNow(), supported: speechLocales.supported, last: speechDeps.last(), ui: speechDeps.ui() })
+  const wanted = wantedSpeechLocale({ spoken: spokenNow(meetingId), supported: speechLocales.supported, last: speechDeps.last(), ui: speechDeps.ui() })
   if (!wanted) return null
   if (speechLocales.installed.includes(wanted)) return wanted
   if (!installing.has(wanted)) {
@@ -76,12 +76,13 @@ function decide(): string | null {
   return null
 }
 /**
- * The spoken language was changed (the note's footer or Settings): whisper hears it from the next chunk on. A recording
- * switched to English only whose Apple speech listens in another language gets whisper's quick readings back instead.
+ * A meeting's spoken language was changed in its note: whisper hears it from the next chunk on. A recording switched to a
+ * language Apple's speech isn't listening in gets whisper's quick readings back instead.
  */
-export function spokenChanged() {
-  const spoken = spokenNow()
-  for (const s of sessions.values()) if (s.speech && !speechFits(spoken, s.speech)) speechOff(s, 'English only was picked')
+export function spokenChanged(meetingId: string) {
+  const s = sessions.get(meetingId)
+  const spoken = spokenNow(meetingId)
+  if (s?.speech && !speechFits(spoken, s.speech)) speechOff(s, `${spoken} was picked`)
 }
 /** segments and hideSegments: the echo sweep after the meeting (tests may leave them out) */
 type SessionStore = Pick<Store, 'updateMeeting'> & Partial<Pick<Store, 'segments' | 'hideSegments' | 'meeting'>>
@@ -171,11 +172,11 @@ export function hookTranscription(p: {
   nameOf?: (meetingId: string, startMs: number, endMs: number) => string | null
   /** Apple's on-device speech for the live words (macOS 26, Apple Silicon): where to ask what it can do, and the locale choices */
   speech?: { host: SpeechHost; binary: string; ui: () => string; last: () => string | null; locales?: () => Promise<SpeechLocales>; install?: (locale: string) => Promise<boolean> }
-  /** the spoken language picked in Settings or the note (English only when left out) */
-  spoken?: () => Spoken
+  /** the meeting's spoken language, picked in its note (English when left out) */
+  spoken?: (meetingId: string) => Spoken
 }): () => void {
   idleMs = p.serverIdleMs ?? SERVER_IDLE_MS
-  spokenNow = p.spoken ?? (() => 'en')
+  spokenNow = (id) => (id && p.spoken ? p.spoken(id) : 'en')
   if (p.speech && appleSpeechAvailable(p.speech.host)) {
     const sp = p.speech
     speechDeps = { ui: sp.ui, last: sp.last, install: sp.install ?? ((l) => installSpeechLocale(sp.binary, l)) }
@@ -203,7 +204,7 @@ export function hookTranscription(p: {
     const promptOf = () => { const m = p.store.meeting?.(id); return m ? whisperPrompt(meetingWords(m)) : '' }
     if (p.transcriber) { const f = p.transcriber; transcribe = async (c, o) => f(c, (l, n, locked) => hear(l, n, locked), o) }
     // fake mode's stand-in is loaded only in fake mode, so it stays out of what real runs load
-    else if (isFake()) transcribe = async (c, o) => (await import('./fake')).fakeTranscribe(c, o, promptOf(), whisperLanguage(spokenNow()))
+    else if (isFake()) transcribe = async (c, o) => (await import('./fake')).fakeTranscribe(c, o, promptOf(), whisperLanguage(spokenNow(id)))
     else {
       const model = p.modelPath()
       if (model) {
@@ -212,7 +213,7 @@ export function hookTranscription(p: {
         // the model takes a few seconds to load: start now, so the first chunk does not wait for it
         srv.url().catch((e) => console.error('whisper-server did not start', e))
         transcribe = createTranscriber({ url: () => srv.url(), recover: recoverer(srv), onLanguage: (_t, lang, chars, locked) => hear(lang, chars, locked), prompt: promptOf,
-          language: () => whisperLanguage(spokenNow()), signal: options?.signal })
+          language: () => whisperLanguage(spokenNow(id)), signal: options?.signal })
       } else {
         console.warn('no speech model yet: this meeting is recorded but not transcribed')
         setTimeout(() => warnOnce('no-speech-model'), NO_MODEL_NOTE_DELAY_MS)

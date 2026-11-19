@@ -303,7 +303,7 @@ describe('whisper-server between meetings', () => {
 
 describe('the spoken language picked', () => {
   /** Apple's speech on a Mac with English and Spanish models, the last meeting in Spanish */
-  async function speechRig(spoken: () => Spoken) {
+  async function speechRig(spoken: (meetingId: string) => Spoken) {
     const starts: Array<(m: Meeting) => void> = [], stops: Array<(m: Meeting) => void> = []
     const procs: Array<ReturnType<typeof fakeProc> & { locale?: string | null }> = []
     const parts: TranscriptPartial[] = []
@@ -330,18 +330,23 @@ describe('the spoken language picked', () => {
     expect(r.procs[0].locale).toBe('en-GB')
     await r.stop()
   })
-  it("Multi-language: today's choice, the last meeting's language", async () => {
-    const r = await speechRig(() => 'multi')
+  it("Auto-detect: the last meeting's language", async () => {
+    const r = await speechRig(() => 'auto')
     expect(r.procs[0].locale).toBe('es-ES')
     await r.stop()
   })
-  it("switched to English only while recording in Spanish: Apple's Spanish words are set aside, whisper's come back", async () => {
-    let spoken: Spoken = 'multi'
+  it("a language picked for one meeting: Apple's speech listens in it", async () => {
+    const r = await speechRig(() => 'es')
+    expect(r.procs[0].locale).toBe('es-ES')
+    await r.stop()
+  })
+  it("switched to English while recording in Spanish: Apple's Spanish words are set aside, whisper's come back", async () => {
+    let spoken: Spoken = 'auto'
     const r = await speechRig(() => spoken)
     r.speak('hola')
     await expect.poll(() => r.parts.some((x) => x.text.includes('hola'))).toBe(true)
     spoken = 'en'
-    spokenChanged()
+    spokenChanged(r.m.id)
     r.speak('adios')
     await new Promise((res) => setTimeout(res, 80))
     expect(r.parts.some((x) => x.text.includes('adios'))).toBe(false)

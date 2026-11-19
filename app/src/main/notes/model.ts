@@ -29,6 +29,8 @@ export function createNotesModel(o: { engine: Engine; modelPath: () => string | 
   contextSize?: number
   /** let go of what must not sit in memory next to the model (whisper-server on a Mac with little memory) */
   beforeLoad?: () => Promise<void>
+  /** Cloud AI: while on, every job is written by an OpenRouter model instead (main/openrouter/llm.ts); asked on each use, so it can be turned on or off any time */
+  remote?: { on(): boolean; llm(signal?: AbortSignal): Promise<Llm> }
 }) {
   let loaded: { path: string; contextSize: number } | undefined
   let loading: Promise<{ path: string; contextSize: number }> | undefined
@@ -61,6 +63,7 @@ export function createNotesModel(o: { engine: Engine; modelPath: () => string | 
   return {
     /** the model, loaded; a stopped job's signal stops what it is writing */
     async llm(signal?: AbortSignal): Promise<Llm> {
+      if (o.remote?.on()) return o.remote.llm(signal)
       const m = await load()
       return {
         contextSize: m.contextSize,
@@ -92,7 +95,7 @@ export function createNotesModel(o: { engine: Engine; modelPath: () => string | 
     },
     loaded: () => loaded?.path,
     /** the next llm() loads the model first (it isn't loaded, or a better one landed) */
-    needsLoad: () => { const path = o.modelPath(); return !!path && loaded?.path !== path },
+    needsLoad: () => { if (o.remote?.on()) return false; const path = o.modelPath(); return !!path && loaded?.path !== path },
   }
 }
 export type NotesModel = ReturnType<typeof createNotesModel>

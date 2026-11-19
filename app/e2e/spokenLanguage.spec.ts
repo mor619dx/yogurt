@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,11 +14,10 @@ async function launch(userData = mkdtempSync(join(tmpdir(), 'yogurt-spoken-'))) 
 const fake = <T>(app: ElectronApplication, fn: string, arg?: unknown): Promise<T> =>
   app.evaluate((_e, [fn, arg]) => (globalThis as unknown as Record<string, Record<string, (a?: unknown) => unknown>>).__fake__[fn as string](arg), [fn, arg] as const) as Promise<T>
 const languages = async (app: ElectronApplication) => (await fake<{ languages: string[] }>(app, 'prompts')).languages
-const saved = (userData: string) => JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8')).spoken
+const saved = (userData: string) => { try { return JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8')).spoken } catch { return undefined } }
 
-test('the spoken language picker: English only by default, Multi-language for the recording going on, remembered and shown in Settings', async () => {
-  const a = await launch()
-  const { app, page } = a
+test("@everywhere each meeting's own spoken language: picked under the note while it records, told to whisper, never changing the default", async () => {
+  const { app, page, userData } = await launch()
   try {
     await page.getByRole('button', { name: 'Start recording', exact: true }).click()
     await expect(page.getByTestId('note-state')).toHaveAttribute('data-state', 'recording')
@@ -30,50 +29,72 @@ test('the spoken language picker: English only by default, Multi-language for th
     await page.getByTestId('spoken-chip').click()
     const menu = page.getByTestId('spoken-menu')
     await expect(menu).toBeVisible()
-    await expect(page.getByTestId('spoken-en')).toContainText('English only')
-    await expect(page.getByTestId('spoken-en')).toContainText('Highest quality')
-    await expect(page.getByTestId('spoken-en')).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByTestId('spoken-multi')).toContainText('Multi-language')
-    await expect(page.getByTestId('spoken-multi')).toContainText('99 languages supported')
-    await expect(page.getByTestId('spoken-multi-info')).toHaveAttribute('title', /not in English/)
-
-    // the recording going on detects from its next words, and the choice is kept for the next ones
+    // the search has focus; every language whisper hears is there, Auto-detect last
+    await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.testid)).toBe('spoken-search')
+    await expect(menu.getByRole('menuitemradio')).toHaveCount(100)
+    await expect(menu.getByRole('menuitemradio').last()).toHaveText(/Auto-detect/)
+    await expect(page.getByTestId('spoken-option-en')).toHaveAttribute('aria-checked', 'true')
+    // found by its name here, its own name, or its code
+    await page.getByTestId('spoken-search').fill('עברית')
+    await expect(menu.getByRole('menuitemradio')).toHaveCount(1)
+    await page.getByTestId('spoken-search').fill('hebr')
+    await expect(page.getByTestId('spoken-option-he')).toContainText('Hebrew')
+    await page.getByTestId('spoken-search').fill('zzzz')
+    await expect(page.getByTestId('spoken-none')).toBeVisible()
+    await page.getByTestId('spoken-search').fill('hebrew')
     const told = (await languages(app)).length
-    await page.getByTestId('spoken-multi').click()
+    await page.getByTestId('spoken-search').press('Enter')
     await expect(menu).toHaveCount(0)
-    await expect(page.getByTestId('spoken-name')).toHaveText('Multi-language')
-    await expect.poll(() => saved(a.userData)).toBe('multi')
-    await expect.poll(async () => (await languages(app)).slice(told), { timeout: 30_000 }).toContain('auto')
+    await expect(page.getByTestId('spoken-name')).toHaveText('Hebrew')
+    await expect.poll(async () => (await languages(app)).slice(told), { timeout: 30_000 }).toContain('he')
     await expect(page.getByTestId('note-state')).toHaveAttribute('data-state', 'recording')
+    // this meeting only: new meetings still start in English
+    expect(saved(userData)).toBeUndefined()
 
-    // the keyboard: Escape closes, the checked one has focus when it opens
+    // Escape closes
     await page.getByTestId('spoken-chip').click()
-    // (a hidden test window never has focus itself, so the element is read instead)
-    const focused = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.testid)
-    await expect.poll(focused).toBe('spoken-multi')
     await page.keyboard.press('Escape')
     await expect(menu).toHaveCount(0)
 
-    // Settings → Language shows the same choice, and changes it back
+    // the finished note keeps its language, and offers to transcribe it again in another
     await page.getByTestId('note-stop').click()
+    await expect(page.getByTestId('spoken-name')).toHaveText('Hebrew')
+    await page.getByTestId('spoken-chip').click()
+    await page.getByTestId('spoken-search').fill('spanish')
+    await page.getByTestId('spoken-option-es').click()
+    await expect(page.getByTestId('spoken-name')).toHaveText('Spanish')
+    const again = page.getByTestId('spoken-again')
+    await expect(again).toContainText('Transcribe again in Spanish?')
+    const before = (await languages(app)).length
+    await page.getByTestId('spoken-again-run').click()
+    await expect(again).toHaveCount(0)
+    await expect.poll(async () => (await languages(app)).slice(before), { timeout: 30_000 }).toContain('es')
+  } finally { await app.close() }
+})
+
+test('@everywhere Settings: the language new meetings start in; Auto-detect lets whisper hear it; Multi-language from before is Auto-detect', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'yogurt-spoken-'))
+  writeFileSync(join(userData, 'settings.json'), JSON.stringify({ spoken: 'multi' }))
+  let { app, page } = await launch(userData)
+  try {
     await page.getByTestId('settings-open').click()
-    await expect(page.getByTestId('settings-spoken-multi')).toHaveAttribute('aria-checked', 'true')
-    await page.getByTestId('settings-spoken-en').click()
-    await expect(page.getByTestId('settings-spoken-en')).toHaveAttribute('aria-checked', 'true')
-    // English only is the default, so it is not written down
-    await expect.poll(() => saved(a.userData)).toBeUndefined()
-    await page.getByTestId('settings-spoken-en').press('ArrowRight')
-    await expect(page.getByTestId('settings-spoken-multi')).toHaveAttribute('aria-checked', 'true')
-    await expect.poll(focused).toBe('settings-spoken-multi')
-    await expect.poll(() => saved(a.userData)).toBe('multi')
+    const select = page.getByTestId('settings-spoken')
+    await expect(select).toHaveValue('auto')
+    await expect(select.locator('option')).toHaveCount(100)
+    await select.selectOption('he')
+    await expect.poll(() => saved(userData)).toBe('he')
+    await select.selectOption('en')
+    // English is the default, so it is not written down
+    await expect.poll(() => saved(userData)).toBeUndefined()
+    await select.selectOption('auto')
+    await expect.poll(() => saved(userData)).toBe('auto')
   } finally { await app.close() }
 
-  // after a relaunch the next recording starts in Multi-language
-  const b = await launch(a.userData)
+  ;({ app, page } = await launch(userData))
   try {
-    await b.page.getByRole('button', { name: 'Start recording', exact: true }).click()
-    await expect(b.page.getByTestId('spoken-name')).toHaveText('Multi-language')
-    await expect.poll(async () => (await languages(b.app)).length, { timeout: 30_000 }).toBeGreaterThan(0)
-    expect(new Set(await languages(b.app))).toEqual(new Set(['auto']))
-  } finally { await b.app.close() }
+    await page.getByRole('button', { name: 'Start recording', exact: true }).click()
+    await expect(page.getByTestId('spoken-name')).toHaveText('Auto-detect')
+    await expect.poll(async () => (await languages(app)).length, { timeout: 30_000 }).toBeGreaterThan(0)
+    expect(new Set(await languages(app))).toEqual(new Set(['auto']))
+  } finally { await app.close() }
 })

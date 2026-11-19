@@ -46,6 +46,11 @@ describe('which locale it listens in', () => {
 
 describe('the spoken language picked in Yogurt', () => {
   const supported = ['en-US', 'en-GB', 'en-AU', 'es-ES', 'de-DE']
+  it('a language listens in that language, whatever the last meeting was; none when the Mac has no model for it', () => {
+    expect(wantedSpeechLocale({ spoken: 'es', supported, last: 'german', ui: 'en-GB' })).toBe('es-ES')
+    expect(wantedSpeechLocale({ spoken: 'de', supported, last: null, ui: 'en-US' })).toBe('de-DE')
+    expect(wantedSpeechLocale({ spoken: 'he', supported, last: 'spanish', ui: 'en-US' })).toBeNull()
+  })
   it('English only listens in English whatever the last meeting was, in the region of the interface when it is English', () => {
     expect(wantedSpeechLocale({ spoken: 'en', supported, last: 'spanish', ui: 'en-GB' })).toBe('en-GB')
     expect(wantedSpeechLocale({ spoken: 'en', supported, last: 'german', ui: 'de-DE' })).toBe('en-US')
@@ -54,13 +59,14 @@ describe('the spoken language picked in Yogurt', () => {
   it('English only with no English model on the Mac: whisper only, never another language', () => {
     expect(wantedSpeechLocale({ spoken: 'en', supported: ['es-ES', 'de-DE'], last: null, ui: 'es-ES' })).toBeNull()
   })
-  it("Multi-language keeps today's choice: the last meeting's language, else the interface's", () => {
-    expect(wantedSpeechLocale({ spoken: 'multi', supported, last: 'spanish', ui: 'en-GB' })).toBe('es-ES')
-    expect(wantedSpeechLocale({ spoken: 'multi', supported, last: null, ui: 'de-DE' })).toBe('de-DE')
+  it("Auto-detect keeps the old Multi-language choice: the last meeting's language, else the interface's", () => {
+    expect(wantedSpeechLocale({ spoken: 'auto', supported, last: 'spanish', ui: 'en-GB' })).toBe('es-ES')
+    expect(wantedSpeechLocale({ spoken: 'auto', supported, last: null, ui: 'de-DE' })).toBe('de-DE')
   })
-  it('a recording switched to English only keeps Apple listening only when it listens in English', () => {
+  it('a recording switched to another language keeps Apple listening only when it listens in that one', () => {
     expect(speechFits('en', 'en-GB')).toBe(true)
     expect(speechFits('en', 'es-ES')).toBe(false)
-    expect(speechFits('multi', 'es-ES')).toBe(true)
+    expect(speechFits('es', 'es-ES')).toBe(true)
+    expect(speechFits('auto', 'es-ES')).toBe(true)
   })
 })

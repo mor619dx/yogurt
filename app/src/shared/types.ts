@@ -92,6 +92,10 @@ export type YogurtApi = {
     retryStopSave(id: string): Promise<boolean>
     /** the person's own title (tidied; blank keeps the old one) */
     rename(id: string, title: string): Promise<void>
+    /** the language people speak in it: whisper hears it from the next chunk on. offerAgain: it is over and its audio can be transcribed again in it */
+    setSpoken(id: string, spoken: import('./spoken').Spoken): Promise<{ ok: boolean; offerAgain: boolean }>
+    /** one voice of the other side named, on every line of it (from: its name now, null for Them); false when refused */
+    renameSpeaker(id: string, from: string | null, to: string): Promise<boolean>
     /** gone for good, audio too; refused while it records */
     delete(id: string): Promise<'deleted' | 'recording' | 'save-pending' | 'missing' | 'failed'>
     /** Delete in a list or a note: to the Trash, out of every list, search and chat until restored; refused while it records */
@@ -155,6 +159,17 @@ export type YogurtApi = {
     save(meetingId: string, side: 'mine' | 'enhanced'): Promise<'saved' | 'cancelled' | 'failed'>
   }
   /** every meeting in one file and back (Settings): import adds the ones that are not here, never changes one that is */
+  /** Settings → Cloud AI: OpenRouter for summaries, titles and answers, and speaker labels after each meeting */
+  openRouter: {
+    state(): Promise<import('./openRouter').OpenRouterState>
+    /** checked with OpenRouter first; '' removes it */
+    setKey(key: string): Promise<{ state: import('./openRouter').OpenRouterState } | { error: import('./openRouter').CloudProblem }>
+    set(patch: Partial<Pick<import('./openRouter').OpenRouterState, 'chat' | 'chatModel' | 'speakers' | 'sttModel' | 'sttOptions'>>): Promise<{ state: import('./openRouter').OpenRouterState } | { error: 'model' | 'json' }>
+    /** OpenRouter's models for writing (chat) or for speech (transcription) */
+    models(kind: 'chat' | 'transcription'): Promise<Array<{ id: string; name: string }> | { error: import('./openRouter').CloudProblem }>
+    /** something sent to OpenRouter failed in a way the person can fix */
+    onProblem(fn: (kind: import('./openRouter').CloudNotice) => void): () => void
+  }
   /** AI apps on this Mac reading meetings through MCP (Settings) */
   mcp: {
     status(): Promise<McpStatus>
@@ -273,7 +288,7 @@ export type YogurtApi = {
   }
   settings: {
     /** myName: what the person is called in meetings (their Mac's full name, macName, when they never changed it) */
-    get(): Promise<{ theme: Theme; openAtLogin: boolean; showInMenuBar: boolean; appVisibility: AppVisibility; /** the language picked; '' follows the Mac */ language: string; /** the language in use */ locale: string; /** the Mac's language, among Yogurt's */ systemLocale: string; myName: string; macName: string; /** a recording stops by itself when its call ends (off: ask first) */ stopWhenCallEnds: boolean; recordingReminder: boolean; keepRecordings: boolean; /** personal jargon, spelled as typed */ jargon: string[]; /** the language people speak in meetings */ spoken: import('./spoken').Spoken; /** default summary language; '' follows the meeting */ summaryLanguage: string }>
+    get(): Promise<{ theme: Theme; openAtLogin: boolean; showInMenuBar: boolean; appVisibility: AppVisibility; /** the language picked; '' follows the Mac */ language: string; /** the language in use */ locale: string; /** the Mac's language, among Yogurt's */ systemLocale: string; myName: string; macName: string; /** a recording stops by itself when its call ends (off: ask first) */ stopWhenCallEnds: boolean; recordingReminder: boolean; keepRecordings: boolean; /** personal jargon, spelled as typed */ jargon: string[]; /** the language new meetings start in */ spoken: import('./spoken').Spoken; /** default summary language; '' follows the meeting */ summaryLanguage: string }>
     /** blank goes back to the Mac's full name */
     setName(name: string): Promise<void>
     setTheme(v: Theme): Promise<void>
@@ -290,7 +305,7 @@ export type YogurtApi = {
     setSummaryLanguage(id: string): Promise<void>
     /** every window hears the language change, wherever it was picked */
     onLanguage(cb: (locale: string) => void): () => void
-    /** English only or Multi-language: the meeting being recorded and the next ones */
+    /** the language new meetings start in; a meeting already made keeps its own */
     setSpoken(v: import('./spoken').Spoken): Promise<void>
   }
   /** finds meetings by date, title, attendees, folders, transcript and notes; nothing typed: the latest. folder: only the meetings in it */

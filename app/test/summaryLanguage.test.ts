@@ -31,7 +31,7 @@ it('defaults to the meeting, validates IPC, persists every offered language and 
   for (const value of [null, undefined, true, 1, {}, [], 'auto', 'xx', 'FR', 'fr-FR', ' French ']) set(value)
   expect(get().summaryLanguage).toBe('fr')
   set('')
-  expect(get()).toMatchObject({ summaryLanguage: '', language: 'ja', locale: 'ja', spoken: 'multi', theme: 'dark' })
+  expect(get()).toMatchObject({ summaryLanguage: '', language: 'ja', locale: 'ja', spoken: 'auto', theme: 'dark' })
   expect(loadSettings(file)).toEqual({ language: 'ja', spoken: 'multi', theme: 'dark' })
   updateSettings(file, { summaryLanguage: 'unavailable' })
   expect(get().summaryLanguage).toBe('')
