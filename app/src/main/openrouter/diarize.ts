@@ -152,6 +152,8 @@ const seconds = (s: unknown): number => (typeof s === 'number' && Number.isFinit
 
 /** a new line after this much quiet between words */
 const WORD_GAP_MS = 1500
+/** no word takes longer to say: a longer one is a timing the model got wrong (ElevenLabs stretched one over 100 s) */
+const MAX_WORD_MS = 3000
 /** a line this long ends at the next sentence end */
 const LONG_LINE_MS = 20_000
 const SENTENCE_END = /[.!?。！？…]["'”’)\]]*$/
@@ -170,7 +172,7 @@ function regroup(words: NonNullable<SttResponse['words']>, ms: (s: number) => nu
     const text = spaced ? w.word : w.word.trim()
     const speaker = speakerOf(w.speaker)
     const startMs = ms(w.start)
-    const endMs = Math.max(startMs, ms(w.end))
+    const endMs = Math.min(Math.max(startMs, ms(w.end)), startMs + MAX_WORD_MS)
     const fresh = !cur || cur.speaker !== speaker || startMs - cur.endMs > WORD_GAP_MS || (cur.endMs - cur.startMs > LONG_LINE_MS && SENTENCE_END.test(cur.text))
     if (fresh || !cur) {
       cur = { startMs, endMs, text, speaker }
@@ -184,9 +186,35 @@ function regroup(words: NonNullable<SttResponse['words']>, ms: (s: number) => nu
   return lines
 }
 
+/** sentences, each with what follows its end (closing quotes, spaces) */
+const SENTENCES = /[^.!?。！？…]+(?:[.!?。！？…]+["'”’)\]]*\s*|$)|[.!?。！？…]+\s*/gu
+/** a sentence of a long line without word timings ends its line once the line is this long */
+const SPREAD_LINE_MS = 5000
+
+/** a line over 20 s with no word timings inside it: one for every few sentences, its time shared out by their length */
+function spread(line: CloudLine): CloudLine[] {
+  const span = line.endMs - line.startMs
+  if (span <= LONG_LINE_MS) return [line]
+  const sentences = line.text.match(SENTENCES) ?? [line.text]
+  const total = sentences.reduce((n, s) => n + s.length, 0) || 1
+  const out: CloudLine[] = []
+  let chars = 0
+  let cur: CloudLine | undefined
+  for (const s of sentences) {
+    const startMs = line.startMs + Math.round((chars / total) * span)
+    chars += s.length
+    const endMs = line.startMs + Math.round((chars / total) * span)
+    if (cur && cur.endMs - cur.startMs < SPREAD_LINE_MS) { cur.text += s; cur.endMs = endMs; continue }
+    out.push((cur = { startMs, endMs, text: s, speaker: line.speaker }))
+  }
+  return out
+}
+
 /**
  * A provider's answer for a chunk as lines on meeting time (offsetMs: where the chunk starts). Segments when they say
- * who spoke, or nobody does; words when only they carry speakers; the bare text over the whole chunk when that is all.
+ * who spoke, or nobody does; words when only they carry speakers, or when nobody does and a segment runs over 20 s
+ * (ElevenLabs answers without speaker labels with one segment for all of it); the bare text over the whole chunk when
+ * that is all. A line over 20 s with no words to cut it by is cut at its sentences.
  */
 export function normalize(resp: SttResponse, offsetMs: number): CloudLine[] {
   const ms = (s: number) => offsetMs + Math.round(seconds(s) * 1000)
@@ -194,11 +222,12 @@ export function normalize(resp: SttResponse, offsetMs: number): CloudLine[] {
   const words = Array.isArray(resp.words) ? resp.words : []
   const segmentSpeakers = segments.some((s) => speakerOf(s.speaker) !== null)
   const wordSpeakers = words.some((w) => speakerOf(w.speaker) !== null)
+  const coarse = segments.some((s) => ms(s.end) - ms(s.start) > LONG_LINE_MS)
   let lines: CloudLine[]
-  if (segments.length && (segmentSpeakers || !wordSpeakers)) {
-    lines = segments.map((s) => ({ startMs: ms(s.start), endMs: Math.max(ms(s.start), ms(s.end)), text: typeof s.text === 'string' ? s.text : '', speaker: speakerOf(s.speaker) }))
+  if (segments.length && (segmentSpeakers || (!wordSpeakers && !(coarse && words.length)))) {
+    lines = segments.map((s) => ({ startMs: ms(s.start), endMs: Math.max(ms(s.start), ms(s.end)), text: typeof s.text === 'string' ? s.text : '', speaker: speakerOf(s.speaker) })).flatMap(spread)
   } else if (words.length) lines = regroup(words, ms)
-  else if (typeof resp.text === 'string' && resp.text.trim()) lines = [{ startMs: offsetMs, endMs: ms(seconds(resp.duration)), text: resp.text, speaker: null }]
+  else if (typeof resp.text === 'string' && resp.text.trim()) lines = spread({ startMs: offsetMs, endMs: ms(seconds(resp.duration)), text: resp.text, speaker: null })
   else return []
   return lines.map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text)
 }
@@ -250,10 +279,16 @@ export function link(prev: CloudLine[], next: CloudLine[], overlap: [number, num
   return map
 }
 
-/** two chunks' lines as one: the overlap's first half from the earlier chunk, the rest from the next */
+/**
+ * Two chunks' lines as one: the overlap's first half from the earlier chunk, the rest from the next. A line of the next
+ * chunk that starts in the first half but runs on past the earlier chunk's end is kept too (the earlier chunk never
+ * heard all of it), in place of the earlier chunk's lines from its start on.
+ */
 export function stitch(prev: CloudLine[], next: CloudLine[], overlap: [number, number]): CloudLine[] {
   const mid = (overlap[0] + overlap[1]) / 2
-  return [...prev.filter((l) => l.startMs < mid), ...next.filter((l) => l.startMs >= mid)]
+  const kept = next.filter((l) => l.startMs >= mid || l.endMs > overlap[1])
+  const from = Math.min(mid, ...kept.map((l) => l.startMs))
+  return [...prev.filter((l) => l.startMs < from), ...kept]
 }
 
 /** a speaker takes a name the call app showed for more than half of the time it spoke */

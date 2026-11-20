@@ -127,7 +127,35 @@ describe('normalize', () => {
   })
 
   it('segments without speakers and words without either: segments, no speaker', () => {
-    expect(normalize({ segments: [{ start: 0, end: 1, text: 'One' }], words: [{ word: 'One', start: 0, end: 1 }] }, 0)).toEqual([{ startMs: 0, endMs: 1000, text: 'One', speaker: null }])
+    expect(normalize({ segments: [{ start: 0, end: 1, text: 'One' }], words: [{ word: 'Uno', start: 0, end: 1 }] }, 0)).toEqual([{ startMs: 0, endMs: 1000, text: 'One', speaker: null }])
+  })
+
+  it('nobody says who spoke and one segment runs over 20 s (ElevenLabs without labels): lines from the words', () => {
+    const words = [{ word: 'כן,', start: 8, end: 8.2 }, { word: 'מה', start: 8.3, end: 8.5 }, { word: 'נשמע?', start: 8.6, end: 9 }, { word: 'טוב.', start: 40, end: 40.5 }]
+    expect(normalize({ segments: [{ start: 0, end: 54, text: 'כן, מה נשמע? טוב.' }], words }, 480_000)).toEqual([
+      { startMs: 488_000, endMs: 489_000, text: 'כן, מה נשמע?', speaker: null },
+      { startMs: 520_000, endMs: 520_500, text: 'טוב.', speaker: null },
+    ])
+  })
+
+  it('a word timed longer than 3 s ends 3 s after it starts', () => {
+    const words = [{ word: 'just', start: 322.7, end: 322.9 }, { word: 'need', start: 323, end: 428 }, { word: 'pricing.', start: 428, end: 428.1 }]
+    expect(normalize({ words }, 0)).toEqual([
+      { startMs: 322_700, endMs: 326_000, text: 'just need', speaker: null },
+      { startMs: 428_000, endMs: 428_100, text: 'pricing.', speaker: null },
+    ])
+  })
+
+  it('a line over 20 s with no words to cut it by is cut at its sentences, its time shared out by their length', () => {
+    const text = 'One two three four. Five six seven eight. Nine ten eleven twelve.'
+    const lines = normalize({ segments: [{ start: 0, end: 60, text }] }, 1000)
+    expect(lines.map((l) => l.text)).toEqual(['One two three four.', 'Five six seven eight.', 'Nine ten eleven twelve.'])
+    expect(lines[0].startMs).toBe(1000)
+    expect(lines.at(-1)!.endMs).toBe(61_000)
+    for (let i = 1; i < lines.length; i++) expect(lines[i].startMs).toBeGreaterThanOrEqual(lines[i - 1].endMs)
+    expect(normalize({ text, duration: 60 }, 0).map((l) => l.text)).toEqual(lines.map((l) => l.text))
+    // short ones stay whole
+    expect(normalize({ segments: [{ start: 0, end: 15, text }] }, 0)).toHaveLength(1)
   })
 
   it('segments without speakers but words with them: lines from the words, a new one when the voice changes', () => {
@@ -219,6 +247,14 @@ describe('stitch', () => {
     const prev = [line(90, 99, 'A', 'p1'), line(100, 104, 'A', 'p2'), line(109.9, 112, 'B', 'p3'), line(110, 115, 'B', 'p4')]
     const next = [line(100.1, 104, 'A', 'n1'), line(109, 110.5, 'B', 'n2'), line(110, 115, 'B', 'n3'), line(121, 125, 'C', 'n4')]
     expect(stitch(prev, next, [100_000, 120_000]).map((l) => l.text)).toEqual(['p1', 'p2', 'p3', 'n3', 'n4'])
+  })
+
+  it('keeps a line of the next chunk that runs past the earlier one, in place of what the earlier one heard from its start', () => {
+    // one line for each whole chunk (a model that gave no timings inside it): nothing of the next chunk is lost
+    expect(stitch([line(0, 450, null, 'first')], [line(460, 930, null, 'second')], [460_000, 480_000]).map((l) => l.text)).toEqual(['first', 'second'])
+    const prev = [line(90, 100, 'A', 'p1'), line(105, 112, 'A', 'p2'), line(113, 120, 'A', 'p3')]
+    const next = [line(104, 106, 'A', 'n1'), line(106, 125, 'A', 'n2'), line(126, 130, 'A', 'n3')]
+    expect(stitch(prev, next, [100_000, 120_000]).map((l) => l.text)).toEqual(['p1', 'p2', 'n2', 'n3'])
   })
 })
 

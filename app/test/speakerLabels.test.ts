@@ -183,6 +183,28 @@ describe('the cloud transcriber', () => {
     expect(seconds(bodies[0])).toBeLessThanOrEqual(8)
     expect(seconds(bodies[1])).toBeGreaterThan(8)
   })
+  it("the mic answered in one segment for each whole part (ElevenLabs without labels): every part's words are kept, in lines", async () => {
+    let k = 0
+    const mic = (b: Record<string, unknown>) => {
+      const seconds = (Buffer.from((b.input_audio as { data: string }).data, 'base64').length - 44) / 32000
+      const words = []
+      for (let t = 0.5; t + 0.5 <= seconds; t += 2.5) words.push({ word: `r${k}.`, start: t, end: t + 0.5 })
+      k++
+      return { segments: [{ start: 0, end: seconds, text: words.map((w) => w.word).join(' ') }], words }
+    }
+    const { bodies, client } = rig(Array.from({ length: 10 }, () => mic), ['elevenlabs'])
+    const saved: Array<{ track: string; text: string; startMs: number; endMs: number }> = []
+    const run = createCloudTranscriber({ client, model: () => 'elevenlabs/scribe-v2', options: () => undefined, spoken: () => 'he', previous: () => [], label: String, chunkMs: 30_000, overlapMs: 4000, searchMs: 1000 })
+    expect(await run('m8', { me: audio(70) }, { save: (s) => saved.push(...s) })).toBe(true)
+    expect(bodies.length).toBeGreaterThanOrEqual(3)
+    const me = saved.filter((s) => s.track === 'me')
+    // the words of every part, to the end of the meeting, in lines of 20 s at most (one for each word, where its part's
+    // segment ran over 20 s)
+    expect(new Set(me.flatMap((s) => s.text.split(' ')))).toEqual(new Set(bodies.map((_, i) => `r${i}.`)))
+    expect(me.every((s) => s.endMs - s.startMs <= 20_000)).toBe(true)
+    expect(me.filter((s) => s.text === 'r0.').length).toBeGreaterThan(5)
+    expect(Math.max(...me.map((s) => s.endMs))).toBeGreaterThan(66_000)
+  })
   it('a model without word timings is asked again without them, and not asked for them after', async () => {
     const fetchFn = (async (url: string, init?: RequestInit) => {
       if (String(url).endsWith('/endpoints')) return new Response(JSON.stringify({ data: { endpoints: [{ tag: 'mistral/zdr' }] } }))
