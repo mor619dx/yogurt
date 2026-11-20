@@ -401,8 +401,8 @@ export function Transcript({ id, notice, processing=false, replacing=false, reco
             const named = turn.some((x) => !('live' in x))
             return (
               <li key={key(first)} data-testid="transcript-turn" data-track={first.track} className={`transcript-turn flex flex-col gap-[5px] ${me ? 'items-end' : 'items-start'}`}>
-                {/* the other side's name heads their turn; the mic's side needs none, its bubbles sit at the end */}
-                <p className={me ? 'sr-only' : 'turn-head flex items-baseline gap-2 px-1 text-xs'}>
+                {/* who spoke heads each turn: the other side's name, or You over the mic's bubbles at the end */}
+                <p className="turn-head flex items-baseline gap-2 px-1 text-xs">
                   <SpeakerName meetingId={id} speaker={first.speaker} label={who(first)} editable={!me && named && !recording && !processing && first.speaker !== AUDIO_SPEAKER}
                     color={color} className={`line-who font-medium ${me ? '' : 'text-muted'} ${named ? 'name-in' : 'invisible'}`} />
                   <time className="turn-time tabular-nums text-muted">{clock(first.startMs)}</time>

@@ -93,9 +93,11 @@ test('the live transcript reads like a conversation: your bubbles at the end, th
     const inset = await list.evaluate(el => parseFloat(getComputedStyle(el).paddingInlineStart))
     expect(box.x + box.width - (m.x + m.width)).toBeCloseTo(inset, 0)
     expect(th.x - box.x).toBeCloseTo(inset, 0)
-    // their name heads their turn; the mic's side needs no label to be told apart
+    // who spoke heads each turn: their name over theirs, You over yours
     await expect(page.getByTestId('transcript-turn').filter({ has: theirs }).getByTestId('transcript-who')).toBeVisible()
-    await expect(page.getByTestId('transcript-turn').filter({ has: mine }).locator('p.sr-only')).toHaveText(/^You/)
+    const you = page.getByTestId('transcript-turn').filter({ has: mine }).getByTestId('transcript-who')
+    await expect(you).toHaveText('You')
+    await expect(you).toBeVisible({ timeout: 30_000 })
     // live words are lighter than settled ones
     await expect(page.getByTestId('transcript-partial').first()).toBeVisible({ timeout: 15_000 })
     const colors = await page.evaluate(() => ({
