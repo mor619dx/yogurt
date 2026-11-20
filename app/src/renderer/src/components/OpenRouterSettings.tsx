@@ -102,6 +102,7 @@ export function OpenRouterSettings() {
             <div className="settings-row-copy">
               <p className="settings-label">{t('Label speakers after each meeting')}</p>
               <p className="settings-description">{t("When a meeting ends, its audio is sent to OpenRouter and the speech model's provider to tell voices apart. If that fails, the transcript from this computer is kept.")}</p>
+              <p data-testid="openrouter-speakers-earlier" className="settings-description">{t('Meetings already recorded: open one and choose “{action}” in its ⋯ menu.', { action: t('Transcribe again with speaker labels') })}</p>
             </div>
             <button data-testid="openrouter-speakers-toggle" role="switch" aria-checked={s.speakers} aria-label={t('Label speakers after each meeting')}
               onClick={() => void set({ speakers: !s.speakers })} className="settings-toggle"><span className="settings-toggle-knob" /></button>
@@ -117,7 +118,7 @@ export function OpenRouterSettings() {
               {listFailed && <p className="settings-description">{t("Couldn't load the model list. You can still type a model ID.")}</p>}
               <details className="mt-2">
                 <summary className="settings-description cursor-default">{t('Provider options (advanced)')}</summary>
-                <textarea data-testid="openrouter-stt-options" dir="ltr" rows={3} value={options} spellCheck={false} placeholder='{"deepgram": {"diarize": true}}'
+                <textarea data-testid="openrouter-stt-options" dir="ltr" rows={3} value={options} spellCheck={false} placeholder='{"elevenlabs": {"diarize": true}}'
                   onChange={(e) => setOptions(e.target.value)} onBlur={() => { if (options.trim() !== s.sttOptions) void set({ sttOptions: options }, 'json') }}
                   className={`${field} mt-2 font-mono text-[12px]`} />
                 <p className="settings-description">{t("Sent as the provider's own options. Leave empty to use the built-in ones.")}</p>

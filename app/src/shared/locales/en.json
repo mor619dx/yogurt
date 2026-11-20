@@ -240,5 +240,7 @@
   "Continue transcription": "Continue transcription",
   "Transcribe again": "Transcribe again",
   "Stop transcription": "Stop transcription",
-  "Audio is unavailable.": "Audio is unavailable."
+  "Audio is unavailable.": "Audio is unavailable.",
+  "Transcribe again with speaker labels": "Transcribe again with speaker labels",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Meetings already recorded: open one and choose “{action}” in its ⋯ menu."
 }

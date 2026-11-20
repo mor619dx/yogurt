@@ -768,5 +768,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt ei saanut yhteyttä OpenRouteriin. Tarkista internetyhteys.",
   "Your OpenRouter account is out of credits.": "OpenRouter-tililtäsi ovat loppuneet krediitit.",
   "Your key is stored without encryption on this computer.": "Avaimesi on tallennettu salaamattomana tälle tietokoneelle.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Litterointisi, muistiinpanosi ja kysymyksesi lähetetään OpenRouterille ja mallin palveluntarjoajalle sen sijaan, että ne pysyisivät tällä tietokoneella."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Litterointisi, muistiinpanosi ja kysymyksesi lähetetään OpenRouterille ja mallin palveluntarjoajalle sen sijaan, että ne pysyisivät tällä tietokoneella.",
+  "Transcribe again with speaker labels": "Litteroi uudelleen ja nimeä puhujat",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Jo nauhoitetut kokoukset: avaa kokous ja valitse ⋯-valikosta ”{action}”."
 }

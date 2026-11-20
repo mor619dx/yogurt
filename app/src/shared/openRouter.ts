@@ -17,4 +17,4 @@ export type OpenRouterState = {
 }
 
 /** speech models on OpenRouter known to tell voices apart, and the provider options that turn it on (keyed by the endpoint's tag) */
-export const SPEAKER_MODELS = ['deepgram/nova-3', 'elevenlabs/scribe-v2', 'assemblyai/universal-3-6-pro', 'mistralai/voxtral-small-transcribe-3-0', 'microsoft/mai-transcribe-2'] as const
+export const SPEAKER_MODELS = ['elevenlabs/scribe-v2', 'microsoft/mai-transcribe-2', 'deepgram/nova-3'] as const

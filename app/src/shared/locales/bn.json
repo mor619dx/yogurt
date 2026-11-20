@@ -750,5 +750,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt OpenRouter-এ পৌঁছাতে পারেনি। আপনার ইন্টারনেট সংযোগ দেখুন।",
   "Your OpenRouter account is out of credits.": "আপনার OpenRouter অ্যাকাউন্টে ক্রেডিট শেষ।",
   "Your key is stored without encryption on this computer.": "আপনার কী এই কম্পিউটারে এনক্রিপশন ছাড়া রাখা আছে।",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "আপনার প্রতিলিপি, নোট ও প্রশ্ন এই কম্পিউটারে থাকার বদলে OpenRouter ও মডেলের প্রোভাইডারের কাছে পাঠানো হয়।"
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "আপনার প্রতিলিপি, নোট ও প্রশ্ন এই কম্পিউটারে থাকার বদলে OpenRouter ও মডেলের প্রোভাইডারের কাছে পাঠানো হয়।",
+  "Transcribe again with speaker labels": "বক্তাদের চিহ্নিত করে আবার প্রতিলিপি করুন",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "আগে রেকর্ড করা মিটিংয়ের জন্য: মিটিংটি খুলে ⋯ মেনু থেকে “{action}” বেছে নিন।"
 }

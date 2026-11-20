@@ -3,7 +3,8 @@ import type { SttResponse } from './client'
 /**
  * Speaker-labelled transcription in the cloud, as pure steps. A speaker model needs minutes of audio to tell voices apart,
  * so a recording goes out in long chunks; each chunk numbers its voices afresh, so chunks overlap, and the voices heard in
- * an overlap are matched to the ones before. Then the speakers get the names the call app showed, where it showed them.
+ * an overlap are matched to the ones before. A voice that was quiet in the overlap is matched by a clip of each voice heard
+ * so far, played ahead of the chunk. Then the speakers get the names the call app showed, where it showed them.
  */
 
 export const SAMPLE_RATE = 16000
@@ -76,6 +77,75 @@ export function isSilent(samples: Float32Array): boolean {
 
 /** a line on meeting time; speaker: the provider's key for the voice (numbered per chunk until linked), null when none */
 export type CloudLine = { startMs: number; endMs: number; text: string; speaker: string | null }
+
+/** a voice heard before, played ahead of the next chunk so the provider says which of its voices it is */
+export type Reference = { speaker: string; samples: Float32Array }
+/** each voice's clip: up to this much of a line it said alone */
+export const REFERENCE_MS = 5000
+const MIN_REFERENCE_MS = 1500
+/** quiet after each clip, longer than a pause inside a line (WORD_GAP_MS), so no clip runs into the next */
+export const REFERENCE_GAP_MS = 1600
+/** the voices played before a chunk (the ones heard most): a provider tells about eight apart */
+export const MAX_REFERENCES = 6
+
+/**
+ * The chunk with the voices heard so far played before it, each followed by a pause: where each clip is in the audio
+ * sent (ms from its start), and where the chunk itself starts.
+ */
+export function withReferences(samples: Float32Array, refs: Reference[]): { audio: Float32Array; windows: Array<{ speaker: string; startMs: number; endMs: number }>; prefixMs: number } {
+  if (!refs.length) return { audio: samples, windows: [], prefixMs: 0 }
+  const gap = toSamples(REFERENCE_GAP_MS)
+  const prefix = refs.reduce((n, r) => n + r.samples.length + gap, 0)
+  const audio = new Float32Array(prefix + samples.length)
+  const windows: Array<{ speaker: string; startMs: number; endMs: number }> = []
+  let at = 0
+  for (const r of refs) {
+    audio.set(r.samples, at)
+    windows.push({ speaker: r.speaker, startMs: toMs(at), endMs: toMs(at + r.samples.length) })
+    at += r.samples.length + gap
+  }
+  audio.set(samples, prefix)
+  return { audio, windows, prefixMs: toMs(prefix) }
+}
+
+/**
+ * Which voice heard before each of the provider's voices is, by the clips played ahead of the chunk: the clip it spoke
+ * over most (at least half a second). Two of its voices can be one speaker (it split a voice); one voice is never two.
+ * lines: the provider's lines in the audio sent (ms from its start), before the chunk.
+ */
+export function fromReferences(lines: CloudLine[], windows: Array<{ speaker: string; startMs: number; endMs: number }>): Map<string, string> {
+  const votes = new Map<string, Map<string, number>>()
+  for (const l of lines) {
+    if (l.speaker === null) continue
+    for (const w of windows) {
+      const ms = Math.min(l.endMs, w.endMs) - Math.max(l.startMs, w.startMs)
+      if (ms <= 0) continue
+      const v = votes.get(l.speaker) ?? new Map<string, number>()
+      v.set(w.speaker, (v.get(w.speaker) ?? 0) + ms)
+      votes.set(l.speaker, v)
+    }
+  }
+  const map = new Map<string, string>()
+  for (const [local, v] of votes) {
+    const [best, ms] = [...v].sort((a, b) => b[1] - a[1])[0]
+    if (ms >= 500) map.set(local, best)
+  }
+  return map
+}
+
+/**
+ * A clip of this line's voice to play ahead of later chunks: the line's middle, up to REFERENCE_MS, when it is long
+ * enough and nobody else spoke over it. lines: the chunk's lines on meeting time; samples: the chunk, from startMs.
+ */
+export function clipOf(line: CloudLine, lines: CloudLine[], samples: Float32Array, startMs: number): Float32Array | undefined {
+  if (line.speaker === null || line.endMs - line.startMs < MIN_REFERENCE_MS + 300) return undefined
+  if (lines.some((o) => o !== line && o.speaker !== line.speaker && o.startMs < line.endMs && o.endMs > line.startMs)) return undefined
+  const len = Math.min(REFERENCE_MS, line.endMs - line.startMs - 300)
+  const from = toSamples(line.startMs + (line.endMs - line.startMs - len) / 2 - startMs)
+  const to = from + toSamples(len)
+  if (from < 0 || to > samples.length) return undefined
+  return samples.slice(from, to)
+}
 
 const speakerOf = (s: number | string | null | undefined): string | null => (s === undefined || s === null || s === '' ? null : String(s))
 const seconds = (s: unknown): number => (typeof s === 'number' && Number.isFinite(s) ? s : 0)

@@ -778,5 +778,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt nu a putut accesa OpenRouter. Verifică conexiunea la internet.",
   "Your OpenRouter account is out of credits.": "Contul tău OpenRouter nu mai are credite.",
   "Your key is stored without encryption on this computer.": "Cheia ta este stocată necriptat pe acest computer.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Transcrierile, notițele și întrebările tale sunt trimise la OpenRouter și la furnizorul modelului în loc să rămână pe acest computer."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Transcrierile, notițele și întrebările tale sunt trimise la OpenRouter și la furnizorul modelului în loc să rămână pe acest computer.",
+  "Transcribe again with speaker labels": "Transcrie din nou cu numele vorbitorilor",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Pentru întâlnirile deja înregistrate: deschideți întâlnirea și alegeți „{action}” din meniul ⋯."
 }

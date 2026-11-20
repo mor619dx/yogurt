@@ -814,5 +814,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "تعذّر على Yogurt الوصول إلى OpenRouter. تحقّق من اتصالك بالإنترنت.",
   "Your OpenRouter account is out of credits.": "نفد رصيد حسابك في OpenRouter.",
   "Your key is stored without encryption on this computer.": "مفتاحك مخزّن دون تشفير على هذا الجهاز.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "تُرسل نصوصك المفرّغة وملاحظاتك وأسئلتك إلى OpenRouter وإلى مزوّد النموذج بدلًا من بقائها على هذا الجهاز."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "تُرسل نصوصك المفرّغة وملاحظاتك وأسئلتك إلى OpenRouter وإلى مزوّد النموذج بدلًا من بقائها على هذا الجهاز.",
+  "Transcribe again with speaker labels": "التفريغ النصي مجددًا مع تسمية المتحدثين",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "للاجتماعات المسجّلة من قبل: افتح الاجتماع واختر «{action}» من قائمة ⋯."
 }

@@ -64,6 +64,13 @@ function withoutThinking(onToken: (t: string) => void) {
 }
 
 /**
+ * Room for a thinking model's reasoning on top of each answer's limit: OpenRouter counts the reasoning in max_tokens, and
+ * a model that thinks first (Gemini 3.5 Flash) spent a 40-token title's whole limit thinking and answered nothing. The
+ * person pays only for what the model writes, so the room costs nothing unless it is used.
+ */
+export const THINKING_ROOM = 8192
+
+/**
  * The notes model on OpenRouter, as the notes need it (the Llm the local engine also gives). Nothing is loaded: llm()
  * only reads the chosen model's context from the model list, kept for an hour. The context is 90% of what OpenRouter
  * lists (its count is the provider's tokenizer, ours a guess), kept between 8k and 128k: notes split a long meeting into
@@ -94,7 +101,7 @@ export function createRemoteLlm(o: { client: OpenRouter; model: () => string }) 
           const body = {
             model,
             messages: [...before(opts?.before), { role: 'user', content: prompt }],
-            ...(opts?.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+            ...(opts?.maxTokens ? { max_tokens: opts.maxTokens + THINKING_ROOM } : {}),
             ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
           }
           const answer = withoutThinking(onToken)

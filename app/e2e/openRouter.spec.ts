@@ -35,6 +35,8 @@ async function cloud(page: Page, o: { chat?: string; speakers?: string }) {
   if (o.speakers) {
     await page.getByTestId('openrouter-speakers-toggle').click()
     await expect(page.getByTestId('openrouter-speakers-toggle')).toHaveAttribute('aria-checked', 'true')
+    // meetings recorded before: where to label them
+    await expect(page.getByTestId('openrouter-speakers-earlier')).toContainText('Transcribe again with speaker labels')
     await page.getByTestId('openrouter-stt-model').fill(o.speakers)
     await page.getByTestId('openrouter-stt-model').press('Enter')
   }
@@ -99,6 +101,10 @@ test('@everywhere Cloud AI: the key is checked and kept sealed; summaries come f
     await page.getByTestId('speaker-rename-input').press('Escape')
     await expect(who.filter({ hasText: 'Bo Park' })).toHaveCount(1)
     await expect(who.filter({ hasText: 'Nobody' })).toHaveCount(0)
+    // a meeting already recorded is labelled from its menu
+    await page.getByTestId('note-menu-button').click()
+    await expect(page.getByTestId('note-transcribe-again')).toHaveText('Transcribe again with speaker labels')
+    await page.keyboard.press('Escape')
   } finally { await app.close() }
 })
 

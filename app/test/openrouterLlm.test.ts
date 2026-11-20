@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createOpenRouter, OpenRouterError, type OpenRouter } from '../src/main/openrouter/client'
-import { createRemoteLlm, estimateTokens } from '../src/main/openrouter/llm'
+import { createRemoteLlm, estimateTokens, THINKING_ROOM } from '../src/main/openrouter/llm'
 
 type Body = { model: string; messages: Array<{ role: string; content: string }>; max_tokens?: number; temperature?: number }
 
@@ -94,7 +94,7 @@ describe('chat', () => {
     expect(asked[0].body).toEqual({
       model: 'a/m',
       messages: [{ role: 'user', content: 'First question' }, { role: 'assistant', content: 'First answer' }, { role: 'user', content: 'And now?' }],
-      max_tokens: 700,
+      max_tokens: 700 + THINKING_ROOM,
       temperature: 0.2,
     })
   })

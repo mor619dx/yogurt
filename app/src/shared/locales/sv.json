@@ -762,5 +762,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt kunde inte nå OpenRouter. Kontrollera internetanslutningen.",
   "Your OpenRouter account is out of credits.": "Ditt OpenRouter-konto har inga krediter kvar.",
   "Your key is stored without encryption on this computer.": "Din nyckel lagras okrypterad på den här datorn.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Dina transkriptioner, anteckningar och frågor skickas till OpenRouter och modellens leverantör i stället för att stanna på den här datorn."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Dina transkriptioner, anteckningar och frågor skickas till OpenRouter och modellens leverantör i stället för att stanna på den här datorn.",
+  "Transcribe again with speaker labels": "Transkribera igen med namngivna talare",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "För möten som redan spelats in: öppna mötet och välj ”{action}” i ⋯-menyn."
 }

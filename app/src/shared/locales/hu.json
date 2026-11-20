@@ -750,5 +750,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "A Yogurt nem érte el az OpenRoutert. Ellenőrizd az internetkapcsolatot.",
   "Your OpenRouter account is out of credits.": "Az OpenRouter-fiókodban elfogyott a kredit.",
   "Your key is stored without encryption on this computer.": "A kulcsod titkosítás nélkül van tárolva ezen a számítógépen.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Az átirataid, jegyzeteid és kérdéseid az OpenRouterhez és a modell szolgáltatójához kerülnek, ahelyett hogy ezen a számítógépen maradnának."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Az átirataid, jegyzeteid és kérdéseid az OpenRouterhez és a modell szolgáltatójához kerülnek, ahelyett hogy ezen a számítógépen maradnának.",
+  "Transcribe again with speaker labels": "Újra átírás a beszélők megjelölésével",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Már felvett megbeszéléseknél: nyisd meg a megbeszélést, és a ⋯ menüben válaszd ezt: „{action}”."
 }

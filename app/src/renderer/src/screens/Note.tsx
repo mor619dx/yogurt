@@ -250,6 +250,9 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
   }, [onResumeRequested, m, notes, summarizing, starting])
 
   const [hasAudio,setHasAudio]=useState(false)
+  // Cloud AI labels the voices when this meeting is transcribed again
+  const [cloudSpeakers,setCloudSpeakers]=useState(false)
+  useEffect(()=>{let active=true;void window.yogurt.openRouter.state().then(s=>{if(active)setCloudSpeakers(s.speakers)}).catch(()=>{});return()=>{active=false}},[id])
   useEffect(()=>{let active=true;const load=()=>void window.yogurt.audio.tracks(id).then(tracks=>{if(active)setHasAudio(!!tracks.length)});load();const off=window.yogurt.meetings.onChange(load);return()=>{active=false;off()}},[id])
   const openedTranscription=useRef<string | undefined>(undefined)
   useLayoutEffect(()=>{if(m&&openedTranscription.current!==id){openedTranscription.current=id;if(transcriptionBusy(m.transcriptionState))setPrimary('transcript')}},[m,id])
@@ -351,7 +354,7 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
         </div>
       </Modal>}
       <div data-testid="note-topbar" className="note-topbar no-drag fixed end-4 top-[10px] z-[60]">
-          <NoteMenu key={id} transcription={{reason:transcriptReason,run:()=>void runTranscript(true)}} generation={generation} hasSummary={hasSummary} edited={notes.edited || editedHere} rewriteOpen={rewriteOpen} setRewriteOpen={setRewriteOpen}
+          <NoteMenu key={id} transcription={{reason:transcriptReason,run:()=>void runTranscript(true),speakers:cloudSpeakers}} generation={generation} hasSummary={hasSummary} edited={notes.edited || editedHere} rewriteOpen={rewriteOpen} setRewriteOpen={setRewriteOpen}
             onWriteAgain={(note) => { if (!generation || generation.reason) return; pickPrimary('notes'); pick('enhanced'); void writeAgain(note) }} recording={recording} savePending={m.stopSavePending} trashed={trashed} onRename={() => setRenaming(true)} onDelete={() => { void saveAll().then((saved) => { if (!saved) return; if (trashed) setDeleting(true); else void moveToTrash(id, `/note/${id}`) }) }}
             folders={(close) => <FolderPicker testId="note-menu-folders" meetingId={id} onNew={() => { close(); setNamingFolder(true) }} />} />
       </div>

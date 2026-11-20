@@ -762,5 +762,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt konnte OpenRouter nicht erreichen. Prüfe deine Internetverbindung.",
   "Your OpenRouter account is out of credits.": "Dein OpenRouter-Konto hat kein Guthaben mehr.",
   "Your key is stored without encryption on this computer.": "Dein Schlüssel ist auf diesem Computer unverschlüsselt gespeichert.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Deine Transkripte, Notizen und Fragen werden an OpenRouter und den Anbieter des Modells gesendet, statt auf diesem Computer zu bleiben."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Deine Transkripte, Notizen und Fragen werden an OpenRouter und den Anbieter des Modells gesendet, statt auf diesem Computer zu bleiben.",
+  "Transcribe again with speaker labels": "Erneut transkribieren und Sprecher benennen",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Für bereits aufgezeichnete Meetings: Meeting öffnen und im ⋯-Menü „{action}“ wählen."
 }

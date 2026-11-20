@@ -723,5 +723,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt가 OpenRouter에 연결하지 못했어요. 인터넷 연결을 확인하세요.",
   "Your OpenRouter account is out of credits.": "OpenRouter 계정의 크레딧이 모두 소진됐어요.",
   "Your key is stored without encryption on this computer.": "키가 이 컴퓨터에 암호화되지 않은 채 저장돼 있어요.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "녹취록, 노트, 질문이 이 컴퓨터에 머물지 않고 OpenRouter와 모델 제공업체로 전송돼요."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "녹취록, 노트, 질문이 이 컴퓨터에 머물지 않고 OpenRouter와 모델 제공업체로 전송돼요.",
+  "Transcribe again with speaker labels": "화자를 표시해 다시 전사",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "이미 녹음한 회의: 회의를 열고 ⋯ 메뉴에서 ‘{action}’을(를) 선택하세요."
 }

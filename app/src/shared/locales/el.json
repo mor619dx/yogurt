@@ -765,5 +765,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Το Yogurt δεν μπόρεσε να συνδεθεί στο OpenRouter. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο.",
   "Your OpenRouter account is out of credits.": "Τα credits του λογαριασμού σας στο OpenRouter εξαντλήθηκαν.",
   "Your key is stored without encryption on this computer.": "Το κλειδί σας αποθηκεύεται χωρίς κρυπτογράφηση σε αυτόν τον υπολογιστή.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Οι απομαγνητοφωνήσεις, οι σημειώσεις και οι ερωτήσεις σας αποστέλλονται στο OpenRouter και στον πάροχο του μοντέλου αντί να μένουν σε αυτόν τον υπολογιστή."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Οι απομαγνητοφωνήσεις, οι σημειώσεις και οι ερωτήσεις σας αποστέλλονται στο OpenRouter και στον πάροχο του μοντέλου αντί να μένουν σε αυτόν τον υπολογιστή.",
+  "Transcribe again with speaker labels": "Νέα απομαγνητοφώνηση με ονομασία ομιλητών",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Για συναντήσεις που έχουν ήδη ηχογραφηθεί: ανοίξτε τη συνάντηση και επιλέξτε «{action}» από το μενού ⋯."
 }

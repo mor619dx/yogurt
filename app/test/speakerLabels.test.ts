@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { openStore, type Store } from '../src/main/store'
 import { createSavedTranscriptions } from '../src/main/savedTranscription'
 import { createOpenRouter } from '../src/main/openrouter/client'
-import { createCloudTranscriber, diarizeOptions } from '../src/main/openrouter/cloudTranscribe'
+import { createCloudTranscriber, diarizeOptions, heardLanguage } from '../src/main/openrouter/cloudTranscribe'
 
 const line = (id: string, start: number, end: number, text: string, track: 'me' | 'them' = 'them', speaker: string | null = null) => ({ meetingId: id, track, startMs: start, endMs: end, text, speaker })
 
@@ -127,25 +127,103 @@ describe('the cloud transcriber', () => {
     expect(bodies.filter((b) => b.provider).map((b) => b.provider)).toEqual([{ options: { deepgram: { diarize: true } } }])
     expect(languages).toEqual(['hebrew'])
   })
-  it('follows the same voice from one part to the next, and skips parts with nothing in them', async () => {
-    const { bodies, client } = rig([
-      // part 1: 0-8 s; part 2 starts 2 s before its cut and numbers the voices the other way round
-      () => ({ segments: [{ start: 0, end: 3, text: 'first voice talks', speaker: 0 }, { start: 3.2, end: 7.6, text: 'second voice answers here', speaker: 1 }] }),
-      () => ({ segments: [{ start: 0, end: 2, text: 'second voice answers here', speaker: 'B' }, { start: 3, end: 5, text: 'first voice again', speaker: 'A' }] }),
-    ])
-    const saved: Array<{ text: string; speaker: string | null }> = []
+  /** voices as tones, each its own pitch (Hz) */
+  const PITCH: Record<string, number> = { A: 220, B: 440, C: 880 }
+  /** the other side of a meeting: who speaks when (s) */
+  function voices(seconds: number, lines: Array<[voice: string, from: number, to: number]>): Float32Array {
+    const s = new Float32Array(16000 * seconds)
+    for (const [v, from, to] of lines) for (let i = Math.round(from * 16000); i < Math.round(to * 16000); i++) s[i] = Math.sin((2 * Math.PI * PITCH[v] * i) / 16000) * 0.3
+    return s
+  }
+  /** a provider that listens: tells the tones apart by pitch, numbers them afresh in each request (the last heard first), a segment for each */
+  function hear(body: Record<string, unknown>) {
+    const b = Buffer.from((body.input_audio as { data: string }).data, 'base64')
+    const pcm = new Int16Array(b.buffer.slice(b.byteOffset + 44, b.byteOffset + b.length))
+    const runs: Array<{ voice: string; start: number; end: number }> = []
+    for (let f = 0; f + 1600 <= pcm.length; f += 1600) {
+      // the pitch over the samples with sound in them (a frame can hold a voice's first or last moments)
+      let loud = 0, crossings = 0
+      for (let i = f + 1; i < f + 1600; i++) if (pcm[i] !== 0 && pcm[i - 1] !== 0) { loud++; if ((pcm[i - 1] < 0) !== (pcm[i] < 0)) crossings++ }
+      if (loud < 800) continue
+      const hz = (crossings * 16000) / loud / 2
+      const voice = Object.entries(PITCH).sort((x, y) => Math.abs(x[1] - hz) - Math.abs(y[1] - hz))[0][0]
+      const t = f / 16000, run = runs.at(-1)
+      if (run && run.voice === voice && t - run.end < 0.35) run.end = t + 0.1
+      else runs.push({ voice, start: t, end: t + 0.1 })
+    }
+    const order = [...new Set(runs.map((r) => r.voice))].reverse()
+    return { segments: runs.map((r) => ({ start: r.start, end: r.end, text: r.voice, speaker: order.indexOf(r.voice) })) }
+  }
+  const once = (a: Float32Array) => (async function* () { yield a })()
+  /** each voice heard, and who the app said it was */
+  const whoIs = (saved: Array<{ track: string; text: string; speaker: string | null }>) => {
+    const by = new Map<string, Set<string | null>>()
+    for (const s of saved.filter((s) => s.track === 'them')) by.set(s.text, (by.get(s.text) ?? new Set()).add(s.speaker))
+    return Object.fromEntries([...by].map(([v, set]) => [v, [...set]]))
+  }
+
+  it('follows each voice from one part to the next, also one that was quiet where the parts overlap; skips parts with nothing in them', async () => {
+    const { bodies, client } = rig(Array.from({ length: 12 }, () => hear))
+    const saved: Array<{ track: string; text: string; speaker: string | null }> = []
     const run = createCloudTranscriber({ client, model: () => 'deepgram/nova-3', options: () => ({ custom: { x: 1 } }), spoken: () => 'auto', previous: () => [], label: (n) => `Speaker ${n}`, chunkMs: 8000, overlapMs: 2000, searchMs: 500 })
-    const them = (async function* () { const s = new Float32Array(16000 * 14); for (let i = 0; i < s.length; i++) s[i] = Math.sin(i / 5) * 0.3; yield s })()
-    const me = (async function* () { yield new Float32Array(16000 * 14) })()
-    await run('m2', { me, them }, { save: (s) => saved.push(...s) })
+    // A speaks again only after the overlap (11.5 s): matched by the clip of A played ahead of the second part
+    const them = voices(20, [['A', 0.5, 3], ['B', 3.5, 7.5], ['C', 8.5, 10.5], ['A', 11.5, 13.5], ['B', 14.5, 16.5], ['C', 17.5, 19.5]])
+    await run('m2', { me: once(new Float32Array(16000 * 20)), them: once(them) }, { save: (s) => saved.push(...s) })
     // silent mic: never sent; Auto-detect: no language; the advanced options go as they are
-    expect(bodies.length).toBeGreaterThanOrEqual(2)
+    expect(bodies.length).toBeGreaterThanOrEqual(3)
     expect(bodies.every((b) => b.provider)).toBe(true)
     expect(bodies.every((b) => !('language' in b))).toBe(true)
     expect(bodies[0].provider).toEqual({ options: { custom: { x: 1 } } })
-    const byText = Object.fromEntries(saved.map((s) => [s.text, s.speaker]))
-    expect(byText['first voice again']).toBe(byText['first voice talks'])
-    expect(byText['second voice answers here']).not.toBe(byText['first voice talks'])
+    const who = whoIs(saved)
+    expect(who).toEqual({ A: [expect.any(String)], B: [expect.any(String)], C: [expect.any(String)] })
+    expect(new Set([who.A[0], who.B[0], who.C[0]]).size).toBe(3)
+    expect(saved.map((s) => s.text)).toEqual(['A', 'B', 'C', 'A', 'B', 'C'])
+    // the clips went ahead of the later parts only: the first is the part alone
+    const seconds = (b: Record<string, unknown>) => (Buffer.from((b.input_audio as { data: string }).data, 'base64').length - 44) / 32000
+    expect(seconds(bodies[0])).toBeLessThanOrEqual(8)
+    expect(seconds(bodies[1])).toBeGreaterThan(8)
+  })
+  it('a model without word timings is asked again without them, and not asked for them after', async () => {
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/endpoints')) return new Response(JSON.stringify({ data: { endpoints: [{ tag: 'mistral/zdr' }] } }))
+      const body = JSON.parse(String(init?.body)); grains.push(body.timestamp_granularities)
+      if (body.timestamp_granularities.includes('word')) return new Response(JSON.stringify({ error: { code: 400, message: 'HTTP 400: Word-level segments are not enabled for this model' } }), { status: 400 })
+      return new Response(JSON.stringify({ segments: [{ start: 0, end: 1, text: 'ok' }] }))
+    }) as typeof fetch
+    const grains: string[][] = []
+    const saved: unknown[] = []
+    const run = createCloudTranscriber({ client: createOpenRouter({ key: () => 'k', fetchFn }), model: () => 'mistralai/voxtral-small-transcribe-3-0', options: () => undefined, spoken: () => 'en', previous: () => [], label: String })
+    expect(await run('m5', { me: audio(2), them: audio(2) }, { save: (s) => saved.push(...s) })).toBe(true)
+    expect(saved).toHaveLength(2)
+    expect(grains.filter((g) => g.includes('word')).length).toBeLessThanOrEqual(2)
+    expect(grains.at(-1)).toEqual(['segment'])
+  })
+  it('a part too large for the model goes again in smaller ones, and the next parts are that small from the start', async () => {
+    const sizes: Array<[seconds: number, ok: boolean]> = []
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/endpoints')) return new Response(JSON.stringify({ data: { endpoints: [{ tag: 'deepgram' }] } }))
+      const body = JSON.parse(String(init?.body))
+      const seconds = (Buffer.from(body.input_audio.data, 'base64').length - 44) / 32000
+      sizes.push([seconds, seconds <= 6])
+      if (seconds > 6) return new Response(JSON.stringify({ error: { code: 400, message: 'The selected model does not support large audio inputs' } }), { status: 400 })
+      return new Response(JSON.stringify(hear(body)))
+    }) as typeof fetch
+    const saved: Array<{ track: string; text: string; speaker: string | null }> = []
+    const run = createCloudTranscriber({ client: createOpenRouter({ key: () => 'k', fetchFn }), model: () => 'deepgram/nova-3', options: () => undefined, spoken: () => 'en', previous: () => [], label: String, minPartMs: 2000, searchMs: 500, overlapMs: 1000 })
+    const them = voices(20, [['A', 0.5, 2.5], ['B', 3.5, 5.5], ['C', 7, 9], ['A', 10.5, 12.5], ['B', 14, 16], ['C', 17.5, 19.5]])
+    expect(await run('m6', { them: once(them) }, { save: (s) => saved.push(...s) })).toBe(true)
+    expect(new Set(saved.map((s) => s.text))).toEqual(new Set(['A', 'B', 'C']))
+    // turned down while the app learned the size (20 s, then 12 s, then 7.2 s), never once it knew
+    const refused = sizes.filter(([, ok]) => !ok)
+    expect(refused.length).toBeLessThanOrEqual(3)
+    expect(sizes.findIndex(([, ok]) => ok)).toBeGreaterThan(sizes.map(([, ok]) => ok).lastIndexOf(false))
+    const plain = (async () => new Response(JSON.stringify({ error: { code: 400, message: 'The selected model does not support large audio inputs' } }), { status: 400 })) as unknown as typeof fetch
+    const never = createCloudTranscriber({ client: createOpenRouter({ key: () => 'k', fetchFn: plain }), model: () => 'x/y', options: () => ({}), spoken: () => 'en', previous: () => [], label: String, minPartMs: 2000 })
+    await expect(never('m7', { them: audio(3) }, {})).rejects.toMatchObject({ kind: 'model' })
+  })
+  it('reads the language a provider heard however it writes it', () => {
+    expect(['he', 'heb', 'iw', 'hebrew', 'HEB', 'eng', 'english', 'en-US', 'jv', 'yue', 'xx', '', 'auto'].map(heardLanguage))
+      .toEqual(['hebrew', 'hebrew', 'hebrew', 'hebrew', 'hebrew', 'english', 'english', 'english', 'javanese', undefined, undefined, undefined, undefined])
   })
   it('asks again when OpenRouter is busy, and gives up at once on a key it refuses', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, advanceTimeDelta: 50 })

@@ -762,5 +762,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Hindi maabot ng Yogurt ang OpenRouter. Tingnan ang koneksyon mo sa internet.",
   "Your OpenRouter account is out of credits.": "Wala nang credits ang OpenRouter account mo.",
   "Your key is stored without encryption on this computer.": "Naka-imbak nang walang encryption ang key mo sa computer na ito.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Ipinapadala ang mga transcript, tala at tanong mo sa OpenRouter at sa provider ng modelo sa halip na manatili sa computer na ito."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Ipinapadala ang mga transcript, tala at tanong mo sa OpenRouter at sa provider ng modelo sa halip na manatili sa computer na ito.",
+  "Transcribe again with speaker labels": "I-transcribe muli nang may pangalan ng mga nagsasalita",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Para sa mga pulong na na-record na: buksan ang pulong at piliin ang “{action}” sa ⋯ menu nito."
 }

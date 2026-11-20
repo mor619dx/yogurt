@@ -723,5 +723,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt 无法连接到 OpenRouter。请检查网络连接。",
   "Your OpenRouter account is out of credits.": "你的 OpenRouter 账户额度已用完。",
   "Your key is stored without encryption on this computer.": "你的密钥以未加密方式存储在这台电脑上。",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "你的转录、笔记和提问会发送到 OpenRouter 和模型的服务商，而不是保留在这台电脑上。"
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "你的转录、笔记和提问会发送到 OpenRouter 和模型的服务商，而不是保留在这台电脑上。",
+  "Transcribe again with speaker labels": "重新转写并标注发言者",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "已录制的会议：打开会议，在 ⋯ 菜单中选择“{action}”。"
 }

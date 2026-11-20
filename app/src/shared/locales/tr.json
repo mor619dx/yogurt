@@ -750,5 +750,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt, OpenRouter’a ulaşamadı. İnternet bağlantınızı kontrol edin.",
   "Your OpenRouter account is out of credits.": "OpenRouter hesabınızda kredi kalmadı.",
   "Your key is stored without encryption on this computer.": "Anahtarınız bu bilgisayarda şifrelenmeden saklanıyor.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Dökümleriniz, notlarınız ve sorularınız bu bilgisayarda kalmak yerine OpenRouter’a ve modelin sağlayıcısına gönderilir."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Dökümleriniz, notlarınız ve sorularınız bu bilgisayarda kalmak yerine OpenRouter’a ve modelin sağlayıcısına gönderilir.",
+  "Transcribe again with speaker labels": "Konuşmacıları adlandırarak yeniden döküm oluştur",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Önceden kaydedilmiş toplantılar için: toplantıyı açın ve ⋯ menüsünden “{action}” seçeneğini seçin."
 }

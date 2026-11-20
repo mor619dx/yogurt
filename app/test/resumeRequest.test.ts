@@ -61,6 +61,7 @@ beforeEach(() => {
     transcript: { get: transcriptGet, onSegment: (cb: typeof segmentChanged) => { segmentChanged = cb; return vi.fn() }, onSpeakers: (cb: typeof transcriptChanged) => { transcriptChanged = cb; return vi.fn() } },
     setup: { state: async () => ({ phase: 'ready', fraction: 1 }), onState: (cb: typeof setupChanged) => { setupChanged = cb; return vi.fn() } },
     audio: { tracks: async()=>[], onDeleted:()=>vi.fn() },
+    openRouter: { state: async () => ({ speakers: false }) },
     widget: { state: async () => null, onState: () => vi.fn() },
   } })
 })

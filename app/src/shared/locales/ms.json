@@ -723,5 +723,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt tidak dapat menghubungi OpenRouter. Semak sambungan internet anda.",
   "Your OpenRouter account is out of credits.": "Kredit akaun OpenRouter anda telah habis.",
   "Your key is stored without encryption on this computer.": "Kunci anda disimpan tanpa penyulitan pada komputer ini.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Transkrip, nota dan soalan anda dihantar kepada OpenRouter dan penyedia model, bukannya kekal pada komputer ini."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Transkrip, nota dan soalan anda dihantar kepada OpenRouter dan penyedia model, bukannya kekal pada komputer ini.",
+  "Transcribe again with speaker labels": "Transkripsi semula dengan nama penutur",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Untuk mesyuarat yang sudah dirakam: buka mesyuarat itu dan pilih “{action}” dalam menu ⋯."
 }

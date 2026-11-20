@@ -771,5 +771,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt לא הצליח להתחבר ל־OpenRouter. בדקו את החיבור לאינטרנט.",
   "Your OpenRouter account is out of credits.": "נגמרו הקרדיטים בחשבון OpenRouter שלך.",
   "Your key is stored without encryption on this computer.": "המפתח שלך שמור במחשב הזה ללא הצפנה.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "התמלילים, ההערות והשאלות שלך נשלחים ל־OpenRouter ולספק של המודל במקום להישאר במחשב הזה."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "התמלילים, ההערות והשאלות שלך נשלחים ל־OpenRouter ולספק של המודל במקום להישאר במחשב הזה.",
+  "Transcribe again with speaker labels": "תמלול מחדש עם זיהוי דוברים",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "לפגישות שכבר הוקלטו: פותחים את הפגישה ובוחרים „{action}” בתפריט ⋯ שלה."
 }

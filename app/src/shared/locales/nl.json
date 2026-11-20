@@ -762,5 +762,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt kon OpenRouter niet bereiken. Controleer je internetverbinding.",
   "Your OpenRouter account is out of credits.": "Je OpenRouter-account heeft geen tegoed meer.",
   "Your key is stored without encryption on this computer.": "Je sleutel wordt onversleuteld op deze computer bewaard.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Je transcripten, notities en vragen worden naar OpenRouter en de provider van het model gestuurd in plaats van op deze computer te blijven."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Je transcripten, notities en vragen worden naar OpenRouter en de provider van het model gestuurd in plaats van op deze computer te blijven.",
+  "Transcribe again with speaker labels": "Opnieuw transcriberen met sprekers",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "Voor al opgenomen vergaderingen: open de vergadering en kies ‘{action}’ in het ⋯-menu."
 }

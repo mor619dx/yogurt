@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chunks, isSilent, link, nameSpeakers, normalize, SAMPLE_RATE, stitch, type CloudLine } from '../src/main/openrouter/diarize'
+import { chunks, clipOf, fromReferences, isSilent, link, nameSpeakers, normalize, REFERENCE_GAP_MS, REFERENCE_MS, SAMPLE_RATE, stitch, withReferences, type CloudLine } from '../src/main/openrouter/diarize'
 
 /** seeded noise, the same every run */
 function noise(n: number, amp: number, seed = 1): Float32Array {
@@ -252,5 +252,43 @@ describe('nameSpeakers', () => {
   it('keeps everything but the speaker', () => {
     const out = nameSpeakers([line(5, 6, '0', 'Hi.')], [], label)
     expect(out).toEqual([{ startMs: 5000, endMs: 6000, text: 'Hi.', speaker: 'Speaker 1' }])
+  })
+})
+
+
+describe('clips of the voices heard before', () => {
+  const L = (startMs: number, endMs: number, speaker: string | null, text = 'x'): CloudLine => ({ startMs, endMs, text, speaker })
+  it('go ahead of the chunk, each followed by a pause; the chunk comes after them all', () => {
+    const part = new Float32Array(at(3000)).fill(0.5)
+    const { audio, windows, prefixMs } = withReferences(part, [{ speaker: '0', samples: new Float32Array(at(2000)).fill(0.1) }, { speaker: '3', samples: new Float32Array(at(1000)).fill(0.2) }])
+    expect(windows).toEqual([{ speaker: '0', startMs: 0, endMs: 2000 }, { speaker: '3', startMs: 2000 + REFERENCE_GAP_MS, endMs: 3000 + REFERENCE_GAP_MS }])
+    expect(prefixMs).toBe(3000 + 2 * REFERENCE_GAP_MS)
+    expect(audio.length).toBe(at(prefixMs) + part.length)
+    expect(audio[at(2000) + 10]).toBe(0)
+    expect(audio[at(prefixMs)]).toBe(0.5)
+    expect(withReferences(part, [])).toEqual({ audio: part, windows: [], prefixMs: 0 })
+  })
+  it("say which voice before each of the provider's voices is: the clip it spoke over most", () => {
+    const windows = [{ speaker: '0', startMs: 0, endMs: 2000 }, { speaker: '3', startMs: 3600, endMs: 4600 }]
+    // the provider numbers them its own way; its "b" spilled a little into the first clip; "c" said nothing in them
+    const map = fromReferences([L(0, 2000, 'a'), L(1800, 1900, 'b'), L(3600, 4600, 'b'), L(4700, 4800, 'c'), L(0, 2000, null)], windows)
+    expect(Object.fromEntries(map)).toEqual({ a: '0', b: '3' })
+    // one voice split in two by the provider: both halves are that speaker
+    expect(Object.fromEntries(fromReferences([L(0, 1000, 'a'), L(1000, 2000, 'z')], windows))).toEqual({ a: '0', z: '0' })
+    // under half a second is not enough
+    expect(fromReferences([L(1700, 2100, 'a')], windows).size).toBe(0)
+  })
+  it("a clip is the middle of a line said alone, long enough, at most REFERENCE_MS", () => {
+    const samples = new Float32Array(at(20_000)).map((_, i) => i / at(20_000))
+    const lines = [L(10_000, 12_000, '1'), L(12_500, 22_000, '2'), L(13_000, 13_400, '3'), L(14_000, 26_000, '4'), L(16_000, 17_000, '5')]
+    // on meeting time: the chunk starts at 10 s
+    const clip = clipOf(lines[0], lines, samples, 10_000)!
+    expect(clip.length).toBe(at(1700))
+    expect(clip[0]).toBeCloseTo(at(150) / at(20_000), 5)
+    expect(clipOf(lines[1], lines, samples, 10_000)).toBeUndefined() // someone spoke over it
+    expect(clipOf(lines[2], lines, samples, 10_000)).toBeUndefined() // too short
+    expect(clipOf(L(10_000, 25_000, '6'), [L(10_000, 25_000, '6')], samples, 10_000)!.length).toBe(at(REFERENCE_MS))
+    expect(clipOf(L(28_000, 31_000, '7'), [], samples, 10_000)).toBeUndefined() // past the chunk
+    expect(clipOf(L(10_000, 12_000, null), [], samples, 10_000)).toBeUndefined()
   })
 })

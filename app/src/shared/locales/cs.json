@@ -791,5 +791,7 @@
   "Yogurt couldn't reach OpenRouter. Check your internet connection.": "Yogurt se nemohl spojit s OpenRouterem. Zkontrolujte připojení k internetu.",
   "Your OpenRouter account is out of credits.": "Na vašem účtu OpenRouter došel kredit.",
   "Your key is stored without encryption on this computer.": "Váš klíč je na tomto počítači uložen bez šifrování.",
-  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Vaše přepisy, poznámky a dotazy se odesílají do OpenRouteru a poskytovateli modelu, místo aby zůstaly na tomto počítači."
+  "Your transcripts, notes and questions are sent to OpenRouter and the model's provider instead of staying on this computer.": "Vaše přepisy, poznámky a dotazy se odesílají do OpenRouteru a poskytovateli modelu, místo aby zůstaly na tomto počítači.",
+  "Transcribe again with speaker labels": "Přepsat znovu s označením mluvčích",
+  "Meetings already recorded: open one and choose “{action}” in its ⋯ menu.": "U již nahraných schůzek: otevřete schůzku a v nabídce ⋯ zvolte „{action}“."
 }
